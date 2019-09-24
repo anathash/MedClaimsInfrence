@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from dataHelper import gen_test_train_set
+from learning.dataHelper import gen_test_train_set
 
 """
 SECTION 1 : Load and setup data for training

@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import numpy as np
 from builtins import range
-from enum import Enum
 
 import torch
 import torch.nn as nn
@@ -10,8 +9,8 @@ import torch.nn.functional as F
 from sklearn.metrics import mean_squared_error
 from torch.autograd import Variable
 
-import dataHelper
-from dataHelper import Split
+from learning import dataHelper
+from learning.dataHelper import Split
 
 """
 SECTION 1 : Load and setup data for training
@@ -55,8 +54,8 @@ class Net(nn.Module):
 
     def __init__(self, hl):
         super(Net, self).__init__()
-        self.fc1 = nn.Linear(30, hl)
-        self.fc2 = nn.Linear(hl, 20)
+        self.fc1 = nn.Linear(18, 40)
+        self.fc2 = nn.Linear(40, 10)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -70,17 +69,23 @@ class LearningParams:
         self.num_epoch = num_epoch
         self.criterion = criterion
 
+class Stats:
+    def __init__(self, mae, acc):
+        self.acc = acc
+        self.mae = mae
 
 class NNLearner:
 
-    def __init__(self, input_dir, train_percent, net, split: Split, params:LearningParams):
+    def __init__(self, train, test, net, params:LearningParams):
         self.net = net
-        self.input_dir = input_dir
-        self.train_percent = train_percent
-        self.split = split
         self.params = params
-        self.data = dataHelper.prepare_dataset(self.split, self.input_dir, self.train_percent)
-
+        # self.split = split
+        #self.train_percent = train_percent
+        # self.input_dir = input_dir
+        #self.data = dataHelper.prepare_dataset_loo(self.split, self.input_dir, self.train_percent)
+        #self.data = dataHelper.prepare_dataset_loo(self.input_dir)
+        self.train = train
+        self.test = test
 
     """
     SECTION 2 : Build and Train Model
@@ -134,8 +139,12 @@ class NNLearner:
             print(' predicted value:' + str(mean_prediction))
             print(' actual value: ' + str(actual_value))
             print('root mean squared error:' + str(rms))
-        print('Total absolute squared error:' + str(np.mean(errors)))
-        print(' Accuracy:' + str(accurate / len(queries)))
+        mae = np.mean(errors)
+        acc = accurate / len(queries)
+
+        print('Total absolute squared error:' + str(mae))
+        print(' Accuracy:' + str(acc))
+        return  Stats(mae=mae, acc=acc)
 
 
     def test(self):
@@ -148,30 +157,51 @@ class NNLearner:
         # get accuration
         print('Accuracy of the network %d %%' % (100 * torch.sum(Y == predicted) / len(predicted)))
         print('Train Queries')
-        self.test_query_set(self.data.train_queries)
+        train_stat = self.test_query_set(self.data.train_queries)
         print('\n \n \n Test Queries')
-        self.test_query_set(self.data.test_queries)
+        test_stats = self.test_query_set(self.data.test_queries)
+        return {'train_stat':train_stat, 'test_stats':test_stats}
 
 
     def learn(self):
        # self.prepare_dataset()
         self.train()
-        self.test()
+        return self.test()
 
 
 def learn_shallow_net():
     hl = 70
     lr = 0.1
     torch.manual_seed(1234)
-    num_epoch = 1000
+    num_epoch = 1500
     net = Net(hl)
     # choose optimizer and loss function
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=lr)
     params = LearningParams(num_epoch=num_epoch, optimizer=optimizer, criterion=criterion)
-    learner = NNLearner(input_dir='C:\\research\\falseMedicalClaims\\examples\\model input\\group1',
-                        train_percent=0.5, net=net, split = Split.BY_QUERY, params=params)
-    learner.learn()
+    test_acc = []
+    test_mae = []
+    train_acc = []
+    train_mae = []
+    input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\pubmed\\group1'
+    dataset = dataHelper.prepare_dataset_loo(input_dir)
+    for data in dataset:
+        learner = NNLearner(data,
+                            train_percent=0.9, net=net, split = Split.BY_QUERY, params=params)
+        res = learner.learn()
+        test_acc.append(res['test_stats'].acc)
+        test_mae.append(res['test_stats'].mae)
+        train_acc.append(res['train_stat'].acc)
+        train_mae.append(res['train_stat'].mae)
+
+    test_acc_mean = np.mean(test_acc)
+    test_mae_mean = np.mean(test_mae)
+    train_acc_mean = np.mean(train_acc)
+    train_mae_mean = np.mean(train_mae)
+    print('test_acc_mean = ' + str(test_acc_mean))
+    print('test_mae_mean = ' + str(test_mae_mean))
+    print('train_acc_mean = ' + str(train_acc_mean))
+    print('train_mae_mean = ' + str(train_mae_mean))
 
 
 
