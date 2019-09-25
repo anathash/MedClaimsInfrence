@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+import gc
+
 import numpy as np
 from builtins import range
 
@@ -103,12 +105,13 @@ class NNLearner:
 
 def get_network():
     layers = [Layer(input=18, output=40), Layer(input=40, output=10)]
+    #layers = [Layer(input=30, output=60), Layer(input=60, output=10)]
     return TwoLayersNet(layers)
 
 def get_parms(net):
     lr = 0.1
     torch.manual_seed(1234)
-    num_epoch = 1500
+    num_epoch = 1000
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=lr)
     return LearningParams(num_epoch=num_epoch, optimizer=optimizer, criterion=criterion)
@@ -120,10 +123,16 @@ def learn_shallow_net(method):
     train_acc = []
     train_mae = []
     input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\perm\\group1'
-    dataset = dataHelper.prepare_dataset_loo(input_dir, method)
+    queries = dataHelper.get_queries(input_dir, method)
+    #dataset = dataHelper.prepare_dataset_loo(input_dir, method)
     net = get_network()
     params = get_parms(net)
-    for data in dataset:
+    #for fnames in fnames_list:
+    for test_query in queries:
+        data = dataHelper.get_data(queries, test_query, method)
+        collected = gc.collect()
+        print("Garbage collector: collected", "%d objects." % collected)
+        #data = dataHelper.get_data(input_dir, fnames, method)
         learner = NNLearner(data, Method.GROUP, net=net, params=params)
         res = learner.learn(method)
         test_acc.append(res['test_stats'].acc)

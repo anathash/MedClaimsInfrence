@@ -34,6 +34,12 @@ class Data:
         self.train_queries = train_queries
         self.test_queries = test_queries
 
+
+class Fnames:
+    def __init__(self, test, train):
+        self.test = test
+        self.train = train
+
 def shrink_classes(df):
     stance_cols = [col for col in df if col.startswith('stance_score')]
     for col in stance_cols:
@@ -45,6 +51,21 @@ def shrink_classes(df):
                 df.loc[i, col] = 5
                 #df[col][i] = 5
 
+
+def get_data(queries, test_query, method, shrink_scores=False):
+    train_queries = {x: y for x, y in queries.items() if x != test_query}
+    test_queries = {test_query: queries[test_query]}
+    test_df = test_queries[test_query].apply(pd.to_numeric)
+    train_dfs = pd.concat(train_queries.values(), ignore_index=True)
+    train_dfs = train_dfs.apply(pd.to_numeric)
+
+    if shrink_scores:
+        shrink_classes(test_df)
+        shrink_classes(train_dfs)
+    __, xtrain, ytrain = split_x_y(train_dfs, method)
+    __, xtest, ytest = split_x_y(test_df, method)
+    return Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest, test_queries=test_queries,
+                     train_queries=train_queries)
 
 
 def gen_test_train_set_group_split(input_dir, train_size, shrink_scores):
@@ -69,7 +90,23 @@ def csv_to_df(input_dir, fnames, method, shrink_scores=False):
     __, x, y = split_x_y(dfs, method)
     return queries, x, y
 
-def gen_test_train_set_query_split_loo(input_dir, method):
+
+def gen_loo_fnames(input_dir, method):
+    filenames = os.listdir(input_dir)
+    example_files = [x for x in filenames if x.endswith(".csv") and x!= 'all.csv']
+    data = []
+    for i in range(0, len(example_files)):
+        left_out = example_files[i]
+        train_fnames = [x for x in example_files if x != left_out]
+        data.append(Fnames(test= [left_out], train = train_fnames))
+    return data
+
+def get_data2(input_dir, fnames, method):
+    train_queries, xtrain, ytrain = csv_to_df(input_dir, fnames.train, method)
+    test_queries, xtest, ytest = csv_to_df(input_dir, fnames.test, method)
+    return Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries)
+
+def gen_test_train_set_query_split_loo2(input_dir, method):
     filenames = os.listdir(input_dir)
     example_files = [x for x in filenames if x.endswith(".csv") and x!= 'all.csv']
     data = []
@@ -77,6 +114,27 @@ def gen_test_train_set_query_split_loo(input_dir, method):
         lef_out = example_files[i]
         train_fnames = [x for x in example_files if x != lef_out]
         test_fnames = [lef_out]
+        train_queries, xtrain, ytrain = csv_to_df(input_dir, train_fnames, method)
+        test_queries, xtest, ytest = csv_to_df(input_dir, test_fnames, method)
+        data.append(Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries))
+    return data
+
+
+def get_queries(input_dir, method):
+    filenames = os.listdir(input_dir)
+    example_files = [x for x in filenames if x.endswith(".csv") and x != 'all.csv']
+    queries = {f: pd.read_csv(input_dir + '\\' + f) for f in example_files}
+    return queries
+
+
+def gen_test_train_set_query_split_loo(input_dir, method):
+    filenames = os.listdir(input_dir)
+    example_files = [x for x in filenames if x.endswith(".csv") and x != 'all.csv']
+    data = []
+    for i in range(0, len(example_files)):
+        left_out = example_files[i]
+        train_fnames = [x for x in example_files if x != left_out]
+        test_fnames = [left_out]
         train_queries, xtrain, ytrain = csv_to_df(input_dir, train_fnames, method)
         test_queries, xtest, ytest = csv_to_df(input_dir, test_fnames, method)
         data.append(Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries))
@@ -92,6 +150,7 @@ def gen_test_train_set_query_split(input_dir, train_percent, shrink_scores, excl
     train_queries, xtrain, ytrain = csv_to_df(input_dir, train_fnames, shrink_scores)
     test_queries, xtest, ytest = csv_to_df(input_dir, test_fnames, shrink_scores)
     return Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries)
+
 
 
 def test_query_set(method, queries, model):
