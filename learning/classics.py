@@ -1,6 +1,7 @@
 # Data Preprocessing
 
 # Importing the Library
+import csv
 from collections import OrderedDict
 
 import numpy as np
@@ -9,7 +10,7 @@ from sklearn import metrics, svm
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
 from learning import dataHelper
-from learning.dataHelper import Stats
+from learning.dataHelper import Stats, RANK_METHODS
 
 
 def learn(regressor, data):
@@ -31,6 +32,7 @@ def learn(regressor, data):
     print('Mean Squared Error:', metrics.mean_squared_error(data.ytest, y_pred))
     print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(data.ytest, y_pred)))
 
+
 def test_models(models, queries, split, method):
     train_acc = {}
     test_acc = {}
@@ -39,45 +41,54 @@ def test_models(models, queries, split, method):
     for model in models:
         model_name = type(model).__name__
         print('\n \n' + model_name)
-        train_acc[model_name] = 0
-        test_acc[model_name] = 0
-        train_mae[model_name] = 0
-        test_mae[model_name] = 0
+        train_acc[model_name] = {x: 0 for x in RANK_METHODS[method]}
+        test_acc[model_name] = {x: 0 for x in RANK_METHODS[method]}
+        train_mae[model_name] = {x: 0 for x in RANK_METHODS[method]}
+        test_mae[model_name] = {x: 0 for x in RANK_METHODS[method]}
         for test_query in queries:
+            if test_query == 'all.csv':
+                continue
             data = dataHelper.get_data(queries, test_query, method)
             learn(model, data)
             if split == dataHelper.Split.BY_QUERY:
+                print(test_query)
                 print('\n \n Train Queries')
                 stats = dataHelper.test_query_set(method, data.train_queries, model)
-                train_acc[model_name] += stats.acc
-                train_mae[model_name] += stats.mae
+                for rm, stats in stats.items():
+                    train_acc[model_name][rm] += stats.acc
+                    train_mae[model_name][rm] += stats.mae
                 print('\n \n Test Queries')
-                stats = dataHelper.test_query_set(model, data.test_queries, model)
-                test_acc[model_name] += stats.acc
-                test_mae[model_name] += stats.mae
+                stats = dataHelper.test_query_set(method, data.test_queries, model)
+                for rm, stats in stats.items():
+                    test_acc[model_name][rm] += stats.acc
+                    test_mae[model_name][rm] += stats.mae
+        for rm in RANK_METHODS[method]:
+            train_acc[model_name][rm] /= len(queries)
+            test_acc[model_name][rm] /= len(queries)
+            train_mae[model_name][rm] /= len(queries)
+            test_mae[model_name][rm] /= len(queries)
 
-        train_acc[model_name] /= len(queries)
-        test_acc[model_name] /= len(queries)
-        train_mae[model_name] /= len(queries)
-        test_mae[model_name] /= len(queries)
+    #train_acc = OrderedDict(sorted(train_acc.items(), key=lambda x: x[1], reverse=True))
+    #test_acc = OrderedDict(sorted(test_acc.items(), key=lambda x: x[1], reverse=True))
+    print(' \n\nTrain')
+    #for model in train_acc.keys():
+        #print('model: ' + model + ' acc: ' + str(train_acc[model]) + ' mae: ' + str(train_mae[model]))
+        #for rm in RANK_METHODS[method]:
 
-    train_acc = OrderedDict(sorted(train_acc.items(), key=lambda x: x[1], reverse=True))
-    test_acc = OrderedDict(sorted(test_acc.items(), key=lambda x: x[1], reverse=True))
-    print (' \n\nTrain')
-    for model in train_acc.keys():
-        print('model: ' + model + ' acc: ' + str(train_acc[model]) + ' mae: ' + str(train_mae[model]))
     print(' \n\nTest')
     for model in test_acc.keys():
-        print('model: ' + model + ' acc: ' + str(test_acc[model]) + ' mae: ' + str(test_mae[model]))
+        print ('model: '  + model + '\n')
+        #print('model: ' + model + ' acc: ' + str(test_acc[model]) + ' mae: ' + str(test_mae[model]))
+        for rm in RANK_METHODS[method]:
+            print (rm + '\n')
+            print(' train acc: ' + str(train_acc[model][rm]) + ' test mae: ' + str(train_mae[model][rm]))
+            print(' test acc: ' + str(test_acc[model][rm]) + ' test mae: ' + str(test_mae[model][rm]))
 
-def run_infrence(input_dir, method):
+
+def run_infrence(input_dir, method, models):
     #data = dataHelper.prepare_dataset_loo(input_dir, method)
     queries = dataHelper.get_queries(input_dir, method)
     #DecisionTreeClassifier(random_state=0), svm.SVC(gamma='scale')
-    models = [DecisionTreeRegressor(random_state=0),
-              LinearRegression(fit_intercept=False, normalize=True),
-              svm.SVC(gamma='scale'),
-              DecisionTreeClassifier(random_state=0)]
     test_models(models, queries, dataHelper.Split.BY_QUERY, method)
 
 def test_query_set2(model, queries, method ):
@@ -102,8 +113,19 @@ def test_query_set2(model, queries, method ):
     return Stats(mae, acc)
 
 def main():
-    input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\perm\\group1'
-    run_infrence(input_dir, dataHelper.Method.GROUP)
+    #    models = [DecisionTreeRegressor(random_state=0),
+#              LinearRegression(fit_intercept=False, normalize=True),
+#              svm.SVC(gamma='scale'),
+#              DecisionTreeClassifier(random_state=0)]
+
+    #input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\perm\\group1'
+    #run_infrence(input_dir, dataHelper.Method.GROUP)
+
+    input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\pubmed\\group6'
+    models = [DecisionTreeRegressor(random_state=0)]
+#              svm.SVC(gamma='scale'),
+#              DecisionTreeClassifier(random_state=0)]
+    run_infrence(input_dir, dataHelper.Method.PAIRS_QUERY, models)
 
     # Importing the dataset
 #    filenames = os.listdir(input_dir)

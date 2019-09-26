@@ -4,41 +4,60 @@ import numpy as np
 import os
 import random
 from enum import Enum
-from itertools import permutations
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+LABEL_FILE = 'C:\\research\\falseMedicalClaims\\examples\\model input\\pubmed\\queries.csv'
 
 class Method(Enum):
     PAIRS_ALL = 1
     PAIRS_QUERY = 2
     GROUP = 3
 
+
+#LABEL_PREDICTION_FUNCS = {Method.PAIRS_ALL: group_prediction,
+#                          Method.PAIRS_ALL: pairs_prediction,
+#                          Method.PAIRS_QUERY:pairs_prediction}
+
+
+RANK_METHODS = {Method.GROUP: ['group'],
+                Method.PAIRS_QUERY:['voting', 'avg_label'],
+                Method.PAIRS_ALL: ['voting', 'avg_label']}
+
 class Split(Enum):
     BY_QUERY = 1
     BY_GROUP = 2
-
 
 class Stats:
     def __init__(self, mae, acc):
         self.acc = acc
         self.mae = mae
 
+
+class Prediction:
+    def __init__(self, mean_prediction, class_prediction):
+        self.mean_prediction = mean_prediction
+        self.class_prediction = class_prediction
+
+
 class Data:
-    def __init__(self, xtrain, ytrain, xtest, ytest, train_queries = None, test_queries = None):
+    def __init__(self, xtrain, ytrain, stance_train, xtest, ytest,stance_test, train_queries = None, test_queries = None):
         self.xtrain = xtrain
         self.ytrain = ytrain
         self.xtest = xtest
         self.ytest = ytest
         self.train_queries = train_queries
         self.test_queries = test_queries
+        self.stance_train = stance_train
+        self.stance_test = stance_test
 
 
-class Fnames:
+class FNames:
     def __init__(self, test, train):
         self.test = test
         self.train = train
+
 
 def shrink_classes(df):
     stance_cols = [col for col in df if col.startswith('stance_score')]
@@ -49,22 +68,30 @@ def shrink_classes(df):
                 df.loc[i, col] = 1
             if val == 4:
                 df.loc[i, col] = 5
-                #df[col][i] = 5
 
+
+def get_all_pairs_train_dfs(queries, test_query):
+    df = queries['all.csv']
+    testq_split = test_query.split('.')[0]
+    train = df.loc[(df.query1 != testq_split) & (df.query2 != testq_split)]
+    return train.drop(columns=['query1', 'query2'])
 
 def get_data(queries, test_query, method, shrink_scores=False):
     train_queries = {x: y for x, y in queries.items() if x != test_query}
     test_queries = {test_query: queries[test_query]}
     test_df = test_queries[test_query].apply(pd.to_numeric)
-    train_dfs = pd.concat(train_queries.values(), ignore_index=True)
+    if method == Method.PAIRS_ALL:
+        train_dfs = get_all_pairs_train_dfs(queries, test_query)
+    else:
+        train_dfs = pd.concat(train_queries.values(), ignore_index=True)
     train_dfs = train_dfs.apply(pd.to_numeric)
 
     if shrink_scores:
         shrink_classes(test_df)
         shrink_classes(train_dfs)
-    __, xtrain, ytrain = split_x_y(train_dfs, method)
-    __, xtest, ytest = split_x_y(test_df, method)
-    return Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest, test_queries=test_queries,
+    stance_train, xtrain, ytrain = split_x_y(train_dfs, method)
+    stance_test, xtest, ytest = split_x_y(test_df, method)
+    return Data(xtrain=xtrain, ytrain=ytrain, stance_train = stance_train, xtest=xtest, ytest=ytest, stance_test = stance_test, test_queries=test_queries,
                      train_queries=train_queries)
 
 
@@ -81,6 +108,22 @@ def gen_test_train_set_group_split(input_dir, train_size, shrink_scores):
     return Data(xtrain, ytrain, xtest, ytest)
 
 
+def gen_loo_fnames(input_dir, method):
+    filenames = os.listdir(input_dir)
+    example_files = [x for x in filenames if x.endswith(".csv") and x!= 'all.csv']
+    data = []
+    for i in range(0, len(example_files)):
+        left_out = example_files[i]
+        train_fnames = [x for x in example_files if x != left_out]
+        data.append(FNames(test= [left_out], train = train_fnames))
+    return data
+
+def get_data2(input_dir, fnames, method):
+    train_queries, xtrain, ytrain = csv_to_df(input_dir, fnames.train, method)
+    test_queries, xtest, ytest = csv_to_df(input_dir, fnames.test, method)
+    return Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries)
+
+
 def csv_to_df(input_dir, fnames, method, shrink_scores=False):
     queries = {f: pd.read_csv(input_dir + '\\' + f) for f in fnames}
     dfs = pd.concat(list(queries.values()), ignore_index=True)
@@ -90,39 +133,11 @@ def csv_to_df(input_dir, fnames, method, shrink_scores=False):
     __, x, y = split_x_y(dfs, method)
     return queries, x, y
 
-
-def gen_loo_fnames(input_dir, method):
-    filenames = os.listdir(input_dir)
-    example_files = [x for x in filenames if x.endswith(".csv") and x!= 'all.csv']
-    data = []
-    for i in range(0, len(example_files)):
-        left_out = example_files[i]
-        train_fnames = [x for x in example_files if x != left_out]
-        data.append(Fnames(test= [left_out], train = train_fnames))
-    return data
-
-def get_data2(input_dir, fnames, method):
-    train_queries, xtrain, ytrain = csv_to_df(input_dir, fnames.train, method)
-    test_queries, xtest, ytest = csv_to_df(input_dir, fnames.test, method)
-    return Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries)
-
-def gen_test_train_set_query_split_loo2(input_dir, method):
-    filenames = os.listdir(input_dir)
-    example_files = [x for x in filenames if x.endswith(".csv") and x!= 'all.csv']
-    data = []
-    for i in range(0, len(example_files)):
-        lef_out = example_files[i]
-        train_fnames = [x for x in example_files if x != lef_out]
-        test_fnames = [lef_out]
-        train_queries, xtrain, ytrain = csv_to_df(input_dir, train_fnames, method)
-        test_queries, xtest, ytest = csv_to_df(input_dir, test_fnames, method)
-        data.append(Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries))
-    return data
-
-
 def get_queries(input_dir, method):
     filenames = os.listdir(input_dir)
     example_files = [x for x in filenames if x.endswith(".csv") and x != 'all.csv']
+    if method == Method.PAIRS_ALL:
+        example_files.append('all.csv')
     queries = {f: pd.read_csv(input_dir + '\\' + f) for f in example_files}
     return queries
 
@@ -140,6 +155,7 @@ def gen_test_train_set_query_split_loo(input_dir, method):
         data.append(Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries))
     return data
 
+
 def gen_test_train_set_query_split(input_dir, train_percent, shrink_scores, excluded=[]):
     filenames = os.listdir(input_dir)
     example_files = [x for x in filenames if x.endswith(".csv") and x not in excluded]
@@ -152,31 +168,108 @@ def gen_test_train_set_query_split(input_dir, train_percent, shrink_scores, excl
     return Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries)
 
 
+def group_prediction(y_predicted):
+    mean_prediction = np.mean(y_predicted)
+    class_prediction = get_class(mean_prediction)
+    return Prediction(mean_prediction=mean_prediction, class_prediction = class_prediction)
 
-def test_query_set(method, queries, model):
-    errors = []
+
+def pairs_prediction(stance, y_predicted):
+    ranking = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    acc = 0
+    for i in range(0, len(y_predicted)):
+        cmp = y_predicted[i]
+        if not (cmp ==0.0 or cmp ==1.0 or cmp ==2.0):
+            assert False
+        if cmp == 0.0:
+            ranking[stance.stance_score1[i]] += 1
+            ranking[stance.stance_score2[i]] += 1
+            acc += 2
+        elif cmp == 1.0:
+            ranking[stance.stance_score1[i]] += 1
+            acc += 1
+        elif cmp == 2.0:
+            ranking[stance.stance_score2[i]] += 1
+            acc += 1
+    sorted_ranks = sorted(ranking.items(), key=lambda kv: kv[1], reverse=True)
+    voting_mean = sorted_ranks[0][0]
+    voting_class = get_class(voting_mean)
+    avg_mean = sum([k*v for k, v in ranking.items()]) / acc
+    avg_class = get_class(avg_mean)
+    return {'voting': Prediction(mean_prediction= voting_mean, class_prediction = voting_class),
+            'avg_label':Prediction(mean_prediction= avg_mean, class_prediction = avg_class)}
+    return voting_label, int(round(avg_label))
+
+
+def get_labels():
+    labels = {}
+    with open(LABEL_FILE, encoding='utf-8', newline='') as queries_csv:
+        reader = csv.DictReader(queries_csv)
+        for row in reader:
+            labels[row['short query']] = int(row['label'])
+    return labels
+
+
+def test_query_set_pairs(method, queries, model):
+    labels = get_labels()
+    errors = {'voting': 0,'avg_label':0}
+    accurate = {'voting':0,'avg_label':0}
+    for query, df in queries.items():
+        print(query)
+        stance, x, y = split_x_y(df, method)
+        y_predicted = model.predict(x)
+        predictions = pairs_prediction(stance, y_predicted)
+        query_name = query.split('.')[0]
+        #actual_value = np.mean(y)
+        actual_class = labels[query_name]
+        for rank_method, prediction in predictions.items():
+            if prediction.class_prediction - actual_class == 0:
+                accurate[rank_method] += 1
+            errors[rank_method] += np.math.fabs(actual_class - prediction.mean_prediction)
+            print(rank_method + ' predicted value:' + str(prediction.mean_prediction))
+            print('Actual class: ' + str(actual_class))
+    mae = {x: (y/ len(queries)) for x,y in errors.items()}
+    mean_acc = {x: (y/len(queries)) for x,y in accurate.items()}
+    for rank_method in accurate.keys():
+        print(rank_method + ' total mean absolute error:' + str(mean_acc[rank_method]))
+        print(rank_method + ' accuracy:' + str(mean_acc[rank_method]))
+    return {'voting':Stats(mae=mae['voting'], acc=mean_acc['voting']),
+            'avg_label': Stats(mae=mae['avg_label'], acc=mean_acc['avg_label'])}
+
+
+def test_group_query_set(queries, model):
+    errors = 0
     accurate = 0
     for query, df in queries.items():
-        __, x, y = split_x_y(df, method)
+        print(query)
+        __, x, y = split_x_y(df, Method.GROUP)
         y_predicted = model.predict(x)
-        mean_prediction = np.mean(y_predicted)
+        prediction = group_prediction(y_predicted)
         actual_value = np.mean(y)
-        prediction = get_class(mean_prediction)
-        if prediction - actual_value == 0:
+        if prediction.class_prediction - actual_value == 0:
             accurate += 1
-        errors.append(np.math.fabs(actual_value - prediction))
+        errors += np.math.fabs(actual_value - prediction.mean_prediction)
 
-        print(' predicted value:' + str(mean_prediction))
+        print(' class predicted value:' + str(prediction.class_prediction))
+        print(' mean_prediction predicted value:' + str(prediction.mean_prediction))
         print(' actual value: ' + str(actual_value))
-    mae = np.mean(errors)
+    mae = errors/ len(queries)
     acc = accurate / len(queries)
     print('Total absolute squared error:' + str(mae))
     print(' Accuracy:' + str(acc))
-    return Stats(mae=mae, acc=acc)
+    return {'group':Stats(mae=mae, acc=acc)}
+
+
+def test_query_set(method, queries, model):
+    if method == Method.GROUP:
+        return test_group_query_set(queries, model)
+    return test_query_set_pairs(method, queries, model)
+
+
 
 def split_x_y(df, method):
     stance = None
-    if method == Method.PAIRS_QUERY:
+    if method == Method.PAIRS_QUERY or method == Method.PAIRS_ALL:
         stance = df.filter(items=['stance_score1', 'stance_score2'])
         df = df.drop(columns=['stance_score1', 'stance_score2'])
     datatest_array = df.values
@@ -184,8 +277,10 @@ def split_x_y(df, method):
     yset = datatest_array[:,0]
     return stance, xset, yset
 
+
 def prepare_dataset_loo(input_dir, method):
     return gen_test_train_set_query_split_loo(input_dir, method)
+
 
 def prepare_dataset(split, input_dir, train_size, shrink_scores=False, excluded = []):
     if split == Split.BY_GROUP:
@@ -202,3 +297,17 @@ def get_class(score): #TODO - define welll
         return 3
     else:
         return 5
+
+def gen_test_train_set_query_split_loo2(input_dir, method):
+    filenames = os.listdir(input_dir)
+    example_files = [x for x in filenames if x.endswith(".csv") and x!= 'all.csv']
+    data = []
+    for i in range(0, len(example_files)):
+        lef_out = example_files[i]
+        train_fnames = [x for x in example_files if x != lef_out]
+        test_fnames = [lef_out]
+        train_queries, xtrain, ytrain = csv_to_df(input_dir, train_fnames, method)
+        test_queries, xtest, ytest = csv_to_df(input_dir, test_fnames, method)
+        data.append(Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries))
+    return data
+

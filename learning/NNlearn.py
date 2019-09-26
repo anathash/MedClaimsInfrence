@@ -11,7 +11,7 @@ from sklearn.metrics import mean_squared_error
 from torch.autograd import Variable
 
 from learning import dataHelper
-from learning.dataHelper import Method, Stats
+from learning.dataHelper import Method, Stats, RANK_METHODS
 from learning.networks import TwoLayersNet, Layer
 
 
@@ -86,15 +86,12 @@ class NNLearner:
         out = self.net(X)
         _, predicted = torch.max(out.data, 1)
 
-        # get accuration
         print('Accuracy of the network %d %%' % (100 * torch.sum(Y == predicted) / len(predicted)))
         print('Train Queries')
-        #train_stat = self.test_query_set(self.data.train_queries)
         train_stat = dataHelper.test_query_set(self.method, self.data.train_queries, self)
         print('\n \n \n Test Queries')
-        #test_stats = self.test_query_set(self.data.test_queries)
         test_stats = dataHelper.test_query_set(self.method, self.data.test_queries, self)
-        return {'train_stat':train_stat, 'test_stats':test_stats}
+        return {'train_stat': train_stat, 'test_stats':test_stats}
 
 
     def learn(self, method):
@@ -116,13 +113,12 @@ def get_parms(net):
     optimizer = torch.optim.SGD(net.parameters(), lr=lr)
     return LearningParams(num_epoch=num_epoch, optimizer=optimizer, criterion=criterion)
 
-def learn_shallow_net(method):
+def learn_shallow_net(method, input_dir):
     # choose optimizer and loss function
-    test_acc = []
-    test_mae = []
-    train_acc = []
-    train_mae = []
-    input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\perm\\group1'
+    test_acc = {x: 0 for x in RANK_METHODS[method]}
+    test_mae = {x: 0 for x in RANK_METHODS[method]}
+    train_acc = {x: 0 for x in RANK_METHODS[method]}
+    train_mae = {x: 0 for x in RANK_METHODS[method]}
     queries = dataHelper.get_queries(input_dir, method)
     #dataset = dataHelper.prepare_dataset_loo(input_dir, method)
     net = get_network()
@@ -135,24 +131,27 @@ def learn_shallow_net(method):
         #data = dataHelper.get_data(input_dir, fnames, method)
         learner = NNLearner(data, Method.GROUP, net=net, params=params)
         res = learner.learn(method)
-        test_acc.append(res['test_stats'].acc)
-        test_mae.append(res['test_stats'].mae)
-        train_acc.append(res['train_stat'].acc)
-        train_mae.append(res['train_stat'].mae)
+        for rm in RANK_METHODS[method]:
+            test_acc[rm].append(res['test_stats'].acc)
+            test_mae[rm].append(res['test_stats'].mae)
+            train_acc[rm].append(res['train_stat'].acc)
+            train_mae[rm].append(res['train_stat'].mae)
 
-    test_acc_mean = np.mean(test_acc)
-    test_mae_mean = np.mean(test_mae)
-    train_acc_mean = np.mean(train_acc)
-    train_mae_mean = np.mean(train_mae)
-    print('test_acc_mean = ' + str(test_acc_mean))
-    print('test_mae_mean = ' + str(test_mae_mean))
-    print('train_acc_mean = ' + str(train_acc_mean))
-    print('train_mae_mean = ' + str(train_mae_mean))
+    for rm in RANK_METHODS[method]:
+        test_acc_mean = np.mean(test_acc[rm])
+        test_mae_mean = np.mean(test_mae[rm])
+        train_acc_mean = np.mean(train_acc[rm])
+        train_mae_mean = np.mean(train_mae[rm])
+        print(method + ' ' + rm + ' test_acc_mean = ' + str(test_acc_mean))
+        print(method + ' ' + rm + 'test_mae_mean = ' + str(test_mae_mean))
+        print(method + ' ' + rm + 'train_acc_mean = ' + str(train_acc_mean))
+        print(method + ' ' + rm + 'train_mae_mean = ' + str(train_mae_mean))
 
 
 
 def main():
-    learn_shallow_net(Method.GROUP)
+    input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\perm\\group1'
+    learn_shallow_net(Method.GROUP, input_dir)
 
 if __name__ == '__main__':
     main()
