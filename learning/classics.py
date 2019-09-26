@@ -125,7 +125,7 @@ def main():
     models = [DecisionTreeRegressor(random_state=0)]
 #              svm.SVC(gamma='scale'),
 #              DecisionTreeClassifier(random_state=0)]
-    run_infrence(input_dir, dataHelper.Method.PAIRS_QUERY, models)
+    run_infrence(input_dir, dataHelper.Method.PAIRS_ALL, models)
 
     # Importing the dataset
 #    filenames = os.listdir(input_dir)

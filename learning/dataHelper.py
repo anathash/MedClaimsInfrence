@@ -215,6 +215,8 @@ def test_query_set_pairs(method, queries, model):
     errors = {'voting': 0,'avg_label':0}
     accurate = {'voting':0,'avg_label':0}
     for query, df in queries.items():
+        if query == 'all.csv':
+            continue
         print(query)
         stance, x, y = split_x_y(df, method)
         y_predicted = model.predict(x)
