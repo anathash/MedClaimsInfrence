@@ -1,5 +1,6 @@
 import csv
 import math
+
 import numpy as np
 import os
 import random
@@ -14,6 +15,7 @@ class Method(Enum):
     PAIRS_ALL = 1
     PAIRS_QUERY = 2
     GROUP = 3
+    GROUP_ALL = 4
 
 
 #LABEL_PREDICTION_FUNCS = {Method.PAIRS_ALL: group_prediction,
@@ -21,7 +23,8 @@ class Method(Enum):
 #                          Method.PAIRS_QUERY:pairs_prediction}
 
 
-RANK_METHODS = {Method.GROUP: ['group'],
+RANK_METHODS = {Method.GROUP_ALL: ['group'],
+                Method.GROUP: ['group'],
                 Method.PAIRS_QUERY:['voting', 'avg_label'],
                 Method.PAIRS_ALL: ['voting', 'avg_label']}
 
@@ -30,9 +33,10 @@ class Split(Enum):
     BY_GROUP = 2
 
 class Stats:
-    def __init__(self, mae, acc):
+    def __init__(self, mae, acc, predictions):
         self.acc = acc
         self.mae = mae
+        self.predictions = predictions
 
 
 class Prediction:
@@ -60,6 +64,7 @@ class FNames:
 
 
 def shrink_classes(df):
+    return
     stance_cols = [col for col in df if col.startswith('stance_score')]
     for col in stance_cols:
         for i in range(0, len(df[col])):
@@ -91,8 +96,8 @@ def get_data(queries, test_query, method, shrink_scores=False):
         shrink_classes(train_dfs)
     stance_train, xtrain, ytrain = split_x_y(train_dfs, method)
     stance_test, xtest, ytest = split_x_y(test_df, method)
-    return Data(xtrain=xtrain, ytrain=ytrain, stance_train = stance_train, xtest=xtest, ytest=ytest, stance_test = stance_test, test_queries=test_queries,
-                     train_queries=train_queries)
+    return Data(xtrain=xtrain, ytrain=ytrain, stance_train = stance_train, xtest=xtest, ytest=ytest,
+                stance_test = stance_test, test_queries=test_queries, train_queries=train_queries)
 
 
 def gen_test_train_set_group_split(input_dir, train_size, shrink_scores):
@@ -134,6 +139,13 @@ def csv_to_df(input_dir, fnames, method, shrink_scores=False):
     return queries, x, y
 
 def get_queries(input_dir, method):
+    if method == Method.GROUP_ALL:
+        queries = {}
+        df = pd.read_csv(input_dir + '\\group_features.csv')
+        for i in range(0, len(df.index)):
+            qname = df.iloc[i].loc['query']
+            queries[qname] = df.iloc[i].to_frame().transpose().drop(columns=['query'])
+        return  queries
     filenames = os.listdir(input_dir)
     example_files = [x for x in filenames if x.endswith(".csv") and x != 'all.csv']
     if method == Method.PAIRS_ALL:
@@ -179,12 +191,12 @@ def pairs_prediction(stance, y_predicted):
     acc = 0
     for i in range(0, len(y_predicted)):
         cmp = y_predicted[i]
+        #cmp = random.randrange(2)
         if not (cmp ==0.0 or cmp ==1.0 or cmp ==2.0):
             assert False
         if cmp == 0.0:
             ranking[stance.stance_score1[i]] += 1
-            ranking[stance.stance_score2[i]] += 1
-            acc += 2
+            acc += 1
         elif cmp == 1.0:
             ranking[stance.stance_score1[i]] += 1
             acc += 1
@@ -217,7 +229,6 @@ def test_query_set_pairs(method, queries, model):
     for query, df in queries.items():
         if query == 'all.csv':
             continue
-        print(query)
         stance, x, y = split_x_y(df, method)
         y_predicted = model.predict(x)
         predictions = pairs_prediction(stance, y_predicted)
@@ -238,32 +249,32 @@ def test_query_set_pairs(method, queries, model):
     return {'voting':Stats(mae=mae['voting'], acc=mean_acc['voting']),
             'avg_label': Stats(mae=mae['avg_label'], acc=mean_acc['avg_label'])}
 
-
 def test_group_query_set(queries, model):
     errors = 0
     accurate = 0
+    predictions = {}
     for query, df in queries.items():
-        print(query)
         __, x, y = split_x_y(df, Method.GROUP)
         y_predicted = model.predict(x)
         prediction = group_prediction(y_predicted)
-        actual_value = np.mean(y)
-        if prediction.class_prediction - actual_value == 0:
+        predictions[query] = prediction
+        actual_value = group_prediction(y)
+        if prediction.class_prediction - actual_value.class_prediction == 0:
             accurate += 1
-        errors += np.math.fabs(actual_value - prediction.mean_prediction)
+        errors += np.math.fabs(actual_value.mean_prediction - prediction.mean_prediction)
 
-        print(' class predicted value:' + str(prediction.class_prediction))
-        print(' mean_prediction predicted value:' + str(prediction.mean_prediction))
-        print(' actual value: ' + str(actual_value))
+#        print(' class predicted value:' + str(prediction.class_prediction))
+#        print(' mean_prediction predicted value:' + str(prediction.mean_prediction))
+#        print(' actual value: ' + str(actual_value))
     mae = errors/ len(queries)
     acc = accurate / len(queries)
-    print('Total absolute squared error:' + str(mae))
-    print(' Accuracy:' + str(acc))
-    return {'group':Stats(mae=mae, acc=acc)}
+#    print('Total absolute squared error:' + str(mae))
+#    print(' Accuracy:' + str(acc))
+    return {'group':Stats(mae=mae, acc=acc, predictions = predictions)}
 
 
 def test_query_set(method, queries, model):
-    if method == Method.GROUP:
+    if method == Method.GROUP or method == Method.GROUP_ALL:
         return test_group_query_set(queries, model)
     return test_query_set_pairs(method, queries, model)
 
@@ -296,6 +307,7 @@ def get_class(score): #TODO - define welll
     if score < 2.5:
         return 1
     elif score < 4:
+        #return 3
         return 3
     else:
         return 5
@@ -313,3 +325,9 @@ def gen_test_train_set_query_split_loo2(input_dir, method):
         data.append(Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries))
     return data
 
+def get_queries_from_df(df):
+    queries = {}
+    for i in range(0, len(df.index)):
+        qname = df.iloc[i].loc['query']
+        queries[qname] = df.iloc[i].to_frame().transpose().drop(columns=['query']).apply(pd.to_numeric)
+    return queries
