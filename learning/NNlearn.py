@@ -24,16 +24,19 @@ class LearningParams:
 
 class NNLearner:
 
-    def __init__(self, data, method,  net, params:LearningParams):
+    def __init__(self,  method,  net, params:LearningParams):
         self.net = net
         self.params = params
-        self.data = data
         self.method = method
 
-    def train(self):
+    def model_name(self):
+        return('Shallow NN')
+
+
+    def train(self, data):
         for epoch in range(self.params.num_epoch):
-            X = Variable(torch.Tensor(self.data.xtrain).float())
-            Y = Variable(torch.Tensor(self.data.ytrain).long())
+            X = Variable(torch.Tensor(data.xtrain).float())
+            Y = Variable(torch.Tensor(data.ytrain).long())
 
             # feedforward - backprop
             self.params.optimizer.zero_grad()
@@ -80,25 +83,25 @@ class NNLearner:
         _, predicted = torch.max(out.data, 1)
         return predicted.numpy()
 
-    def test(self):
+    def test(self, data):
         # get prediction
-        X = Variable(torch.Tensor(self.data.xtest).float())
-        Y = torch.Tensor(self.data.ytest).long()
+        X = Variable(torch.Tensor(data.xtest).float())
+        Y = torch.Tensor(data.ytest).long()
         out = self.net(X)
         _, predicted = torch.max(out.data, 1)
 
         print('Accuracy of the network %d %%' % (100 * torch.sum(Y == predicted) / len(predicted)))
         print('Train Queries')
-        train_stat = dataHelper.test_query_set(self.method, self.data.train_queries, self)
+        train_stat = dataHelper.test_query_set(self.method, data.train_queries, self)
         print('\n \n \n Test Queries')
-        test_stats = dataHelper.test_query_set(self.method, self.data.test_queries, self)
+        test_stats = dataHelper.test_query_set(self.method, data.test_queries, self)
         return {'train_stat': train_stat, 'test_stats':test_stats}
 
 
-    def learn(self, method):
+    def learn(self, data):
        # self.prepare_dataset()
-        self.train()
-        return self.test()
+        self.train(data)
+
 
 
 def get_network():
@@ -139,8 +142,9 @@ def learn_shallow_net(method, input_dir,net):
         collected = gc.collect()
         print("Garbage collector: collected", "%d objects." % collected)
         #data = dataHelper.get_data(input_dir, fnames, method)
-        learner = NNLearner(data, method, net=net, params=params)
-        res = learner.learn(method)
+        learner = NNLearner(method, net=net, params=params)
+        learner.learn(data)
+        res = learner.test(data)
         for rm in RANK_METHODS[method]:
             test_acc[rm].append(res['test_stats'][rm].acc)
             test_mae[rm].append(res['test_stats'][rm].mae)
@@ -191,8 +195,7 @@ def main():
     #layers = [Layer(input=18, output=40), Layer(input=40, output=10)]
     # layers = [Layer(input=30, output=60), Layer(input=60, output=10)]
     #layers = [Layer(input=14, output=35), Layer(input=35, output=13)]
-    #layers = [Layer(input=31, output=65), Layer(input=65, output=10)]
-    layers = [Layer(input=78, output=20), Layer(input=20, output=10)]
+    layers = [Layer(input=31, output=20), Layer(input=20, output=10)]
 
     net = TwoLayersNet(layers)
     learn_shallow_net(Method.GROUP_ALL, input_dir, net)

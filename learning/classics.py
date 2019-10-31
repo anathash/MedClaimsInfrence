@@ -19,7 +19,7 @@ from IPython.display import Image
 import pydotplus
 
 def visualize(model):
-    feature_cols1 =['h_index_mean', 'h_index_std', 'stance_score_mean',
+    feature_cols =['h_index_mean', 'h_index_std', 'stance_score_mean',
      'stance_score_std', 'current_score_mean', 'current_score_std',
      'recent_weighted_citation_count_mean',
      'recent_weighted_citation_count_std', 'recent_weighted_h_index_mean',
@@ -33,36 +33,6 @@ def visualize(model):
     graph = pydotplus.graph_from_dot_data(dot_data.getvalue())
     graph.write_png('tree.png')
     Image(graph.create_png())
-
-
-def learn(regressor, data):
-    feature_cols_stance = ['stance_1','stance_2','stance_3','stance_4','stance_5','h_index1_mean','current_score1_mean','recent_weighted_citation_count1_mean','recent_weighted_h_index1_mean','citation_count1_mean','h_index2_mean','current_score2_mean','recent_weighted_citation_count2_mean','recent_weighted_h_index2_mean','citation_count2_mean','h_index3_mean','current_score3_mean','recent_weighted_citation_count3_mean','recent_weighted_h_index3_mean','citation_count3_mean','h_index4_mean','current_score4_mean','recent_weighted_citation_count4_mean','recent_weighted_h_index4_mean','citation_count4_mean','h_index5_mean','current_score5_mean','recent_weighted_citation_count5_mean','recent_weighted_h_index5_mean','citation_count5_mean','rel']
-    fc2 = ['stance_1','stance_3','stance_5','h_index1_mean','current_score1_mean','recent_weighted_citation_count1_mean',
-           'recent_weighted_h_index1_mean','citation_count1_mean','contradicted_by_later1_mean','h_index3_mean',
-           'current_score3_mean','recent_weighted_citation_count3_mean','recent_weighted_h_index3_mean','citation_count3_mean',
-           'contradicted_by_later3_mean','h_index5_mean','current_score5_mean',
-           'recent_weighted_citation_count5_mean','recent_weighted_h_index5_mean','citation_count5_mean','contradicted_by_later5_mean','num_ir']
-
-    # Fitting Simple Linear Regression model to the data set
-    #linear_regressor = LinearRegression()
-    X = data.xtrain
-    y = data.ytrain
-    regressor.fit(X,y)
-    #tree_rules = export_text(regressor, feature_names=feature_cols_stance)
-    #print(tree_rules)
-    #visualize(regressor)
-    # Predicting a new result
-    y_pred = regressor.predict(data.xtest)
-
-    df = pd.DataFrame({'Actual': data.ytest.flatten(), 'Predicted': y_pred.flatten()})
-    #print(df)
-
-    r_sq = regressor.score(data.xtrain, data.ytrain)
-    print('coefficient of determination:', r_sq)
-
- #   print('Mean Absolute Error:', metrics.mean_absolute_error(data.ytest, y_pred))
- #   print('Mean Squared Error:', metrics.mean_squared_error(data.ytest, y_pred))
- #   print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(data.ytest, y_pred)))
 
 
 def x_fold(num_folds, queries):
@@ -159,8 +129,6 @@ def test_models(models, queries, split, method):
         #print()
 
 
-
-
 def run_infrence(input_dir, method, models):
     #data = dataHelper.prepare_dataset_loo(input_dir, method)
     queries = dataHelper.get_queries(input_dir, method)
@@ -224,6 +192,38 @@ def group_all():
     create_report_file(input_dir + '\\group_features_by_stance_report.csv',queries=queries,
                        models = models,predictions=predictions,majority_classifier=mc,labels=labels
                        )
+
+
+
+def learn(regressor, data):
+    feature_cols_stance = ['stance_1','stance_2','stance_3','stance_4','stance_5','h_index1_mean','current_score1_mean','recent_weighted_citation_count1_mean','recent_weighted_h_index1_mean','citation_count1_mean','h_index2_mean','current_score2_mean','recent_weighted_citation_count2_mean','recent_weighted_h_index2_mean','citation_count2_mean','h_index3_mean','current_score3_mean','recent_weighted_citation_count3_mean','recent_weighted_h_index3_mean','citation_count3_mean','h_index4_mean','current_score4_mean','recent_weighted_citation_count4_mean','recent_weighted_h_index4_mean','citation_count4_mean','h_index5_mean','current_score5_mean','recent_weighted_citation_count5_mean','recent_weighted_h_index5_mean','citation_count5_mean','rel']
+    fc2 = ['stance_1','stance_3','stance_5','h_index1_mean','current_score1_mean','recent_weighted_citation_count1_mean',
+           'recent_weighted_h_index1_mean','citation_count1_mean','contradicted_by_later1_mean','h_index3_mean',
+           'current_score3_mean','recent_weighted_citation_count3_mean','recent_weighted_h_index3_mean','citation_count3_mean',
+           'contradicted_by_later3_mean','h_index5_mean','current_score5_mean',
+           'recent_weighted_citation_count5_mean','recent_weighted_h_index5_mean','citation_count5_mean','contradicted_by_later5_mean','num_ir']
+
+    # Fitting Simple Linear Regression model to the data set
+    #linear_regressor = LinearRegression()
+    X = data.xtrain
+    y = data.ytrain
+    regressor.fit(X,y)
+    #tree_rules = export_text(regressor, feature_names=feature_cols_stance)
+    #print(tree_rules)
+    #visualize(regressor)
+    # Predicting a new result
+    y_pred = regressor.predict(data.xtest)
+
+    df = pd.DataFrame({'Actual': data.ytest.flatten(), 'Predicted': y_pred.flatten()})
+    #print(df)
+
+    r_sq = regressor.score(data.xtrain, data.ytrain)
+    print('coefficient of determination:', r_sq)
+
+ #   print('Mean Absolute Error:', metrics.mean_absolute_error(data.ytest, y_pred))
+ #   print('Mean Squared Error:', metrics.mean_squared_error(data.ytest, y_pred))
+ #   print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(data.ytest, y_pred)))
+
 
 def main():
     pandas.set_option('display.max_rows', 50)

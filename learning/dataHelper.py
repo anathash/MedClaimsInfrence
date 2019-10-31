@@ -262,13 +262,13 @@ def test_query_set_pairs(method, queries, model):
     return {'voting':Stats(mae=mae['voting'], acc=mean_acc['voting']),
             'avg_label': Stats(mae=mae['avg_label'], acc=mean_acc['avg_label'])}
 
-def test_group_query_set(queries, model):
+def test_group_query_set(queries, learner):
     errors = 0
     accurate = 0
     predictions = {}
     for query, df in queries.items():
         __, x, y = split_x_y(df, Method.GROUP)
-        y_predicted = model.predict(x)
+        y_predicted = learner.predict(x)
         prediction = group_prediction(y_predicted)
         predictions[query] = prediction
         actual_value = group_prediction(y)
@@ -286,10 +286,10 @@ def test_group_query_set(queries, model):
     return {'group':Stats(mae=mae, acc=acc, predictions = predictions)}
 
 
-def test_query_set(method, queries, model):
+def test_query_set(method, queries, learner):
     if method == Method.GROUP or method == Method.GROUP_ALL:
-        return test_group_query_set(queries, model)
-    return test_query_set_pairs(method, queries, model)
+        return test_group_query_set(queries, learner)
+    return test_query_set_pairs(method, queries, learner)
 
 
 
@@ -347,9 +347,9 @@ def get_queries_from_df(df):
         queries[qname] = df.iloc[i].to_frame().transpose().drop(columns=['query']).apply(pd.to_numeric)
     return queries
 
-def create_report_file(report_fname,queries, models, predictions, majority_classifier,labels):
+def create_report_file(report_fname,queries, learners, predictions, majority_classifier,labels):
     with open(report_fname, 'w', encoding='utf-8', newline='') as out:
-        model_names = [type(model).__name__ for model in models]
+        model_names = [learner.model_name() for learner in learners]
         model_names.append('majority')
         predictions['majority'] = majority_classifier.get_predictions()
         fieldnames = ['query', 'value_label', 'class_label']
