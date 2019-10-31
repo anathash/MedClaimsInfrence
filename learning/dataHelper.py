@@ -45,6 +45,19 @@ class Prediction:
         self.class_prediction = class_prediction
 
 
+class MajorityClassifier:
+    def __init__(self, majority_file):
+        self.predictions = {}
+        with open(majority_file, encoding='utf-8', newline='') as queries_csv:
+            reader = csv.DictReader(queries_csv)
+            for row in reader:
+                value = int(row['majority_value'])
+                self.predictions[row['query']] = Prediction(value,get_class(value) )
+
+    def get_predictions(self):
+        return self.predictions
+
+
 class Data:
     def __init__(self, xtrain, ytrain, stance_train, xtest, ytest,stance_test, train_queries = None, test_queries = None):
         self.xtrain = xtrain
@@ -303,6 +316,8 @@ def prepare_dataset(split, input_dir, train_size, shrink_scores=False, excluded 
         # split x and y (feature and target)
 
 
+
+
 def get_class(score): #TODO - define welll
     if score < 3:
         return 1
@@ -331,3 +346,26 @@ def get_queries_from_df(df):
         qname = df.iloc[i].loc['query']
         queries[qname] = df.iloc[i].to_frame().transpose().drop(columns=['query']).apply(pd.to_numeric)
     return queries
+
+def create_report_file(report_fname,queries, models, predictions, majority_classifier,labels):
+    with open(report_fname, 'w', encoding='utf-8', newline='') as out:
+        model_names = [type(model).__name__ for model in models]
+        model_names.append('majority')
+        predictions['majority'] = majority_classifier.get_predictions()
+        fieldnames = ['query', 'value_label', 'class_label']
+        fieldnames.extend([model_name+'_class' for model_name in model_names])
+        fieldnames.extend([model_name+'_value' for model_name in model_names])
+        fieldnames.extend([model_name+'_acc' for model_name in model_names])
+        fieldnames.extend([model_name+'_error' for model_name in model_names])
+        writer = csv.DictWriter(out, fieldnames=fieldnames)
+        writer.writeheader()
+        for q in queries:
+            value_label = labels[q]
+            class_label = get_class(value_label)
+            row = {'query':q, 'value_label': value_label, 'class_label':class_label}
+            for model_name in model_names:
+                row[model_name+"_class"] = predictions[model_name][q].class_prediction
+                row[model_name + "_value"] = predictions[model_name][q].mean_prediction
+                row[model_name + "_acc"] = int(class_label == predictions[model_name][q].class_prediction)
+                row[model_name + "_error"] = math.fabs(value_label - predictions[model_name][q].mean_prediction)
+            writer.writerow(row)

@@ -11,7 +11,7 @@ from sklearn import metrics, svm
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier, export_text
 from learning import dataHelper
-from learning.dataHelper import Stats, RANK_METHODS, get_queries_from_df
+from learning.dataHelper import Stats, RANK_METHODS, get_queries_from_df, create_report_file, MajorityClassifier
 
 from sklearn.tree import export_graphviz
 from sklearn.externals.six import StringIO
@@ -58,7 +58,7 @@ def learn(regressor, data):
     #print(df)
 
     r_sq = regressor.score(data.xtrain, data.ytrain)
- #    print('coefficient of determination:', r_sq)
+    print('coefficient of determination:', r_sq)
 
  #   print('Mean Absolute Error:', metrics.mean_absolute_error(data.ytest, y_pred))
  #   print('Mean Squared Error:', metrics.mean_squared_error(data.ytest, y_pred))
@@ -77,7 +77,7 @@ def x_fold(num_folds, queries):
         start_index += queries_per_fold
     return test_queries
 
-def test_models(models, queries, split, method, report_fname):
+def test_models(models, queries, split, method):
     test_queries = x_fold(10,queries)
     train_acc = {}
     test_acc = {}
@@ -127,8 +127,6 @@ def test_models(models, queries, split, method, report_fname):
             test_mae[model_name][rm] /= len(queries)
 
 
-
-
     #train_acc = OrderedDict(sorted(train_acc.items(), key=lambda x: x[1], reverse=True))
     #test_acc = OrderedDict(sorted(test_acc.items(), key=lambda x: x[1], reverse=True))
     #print(' \n\nTrain')
@@ -156,22 +154,9 @@ def test_models(models, queries, split, method, report_fname):
             stats += model + ': '
             for rm in RANK_METHODS[method]:
                 stats += str(queries_stats[q][model][rm]) + ', '
+        return predictions
         #print(stats)
         #print()
-    with open(report_fname, 'w', encoding='utf-8', newline='') as out:
-        fieldnames = ['query']
-        fieldnames.extend([type(model).__name__+'_class' for model in models])
-        fieldnames.extend([type(model).__name__+'_value' for model in models])
-        writer = csv.DictWriter(out, fieldnames=fieldnames)
-        writer.writeheader()
-        for q in queries:
-            row = {'query':q}
-            for model in models:
-                model_name = type(model).__name__
-                row[model_name+"_class"] = predictions[model_name][q].class_prediction
-                row[model_name + "_value"] = predictions[model_name][q].mean_prediction
-            writer.writerow(row)
-
 
 
 
@@ -224,16 +209,21 @@ def pairs():
 
 def group_all():
     #input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\pubmed\\normed\\group7'
-    input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\Yael\\by_group'
-    models = [DecisionTreeRegressor(random_state=0),
+    input_dir = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael\\by_group'
+    models = [#DecisionTreeRegressor(random_state=0),
               DecisionTreeClassifier(random_state=0)]
-            #  LinearRegression()]
+              #LinearRegression()]
 
     #df = pd.read_csv(input_dir + '\\group_features.csv')
     df = pd.read_csv(input_dir + '\\group_features_by_stance.csv')
     #df = pd.read_csv(input_dir + '\\group_features_by_paper_type.csv')
     queries = get_queries_from_df(df)
-    test_models(models, queries, dataHelper.Split.BY_QUERY, dataHelper.Method.GROUP_ALL, input_dir + '\\group_features_by_stance_report.csv')
+    labels = {q:int(queries[q].label) for q in queries}
+    mc = MajorityClassifier(input_dir + '\\majority.csv')
+    predictions = test_models(models, queries, dataHelper.Split.BY_QUERY, dataHelper.Method.GROUP_ALL)
+    create_report_file(input_dir + '\\group_features_by_stance_report.csv',queries=queries,
+                       models = models,predictions=predictions,majority_classifier=mc,labels=labels
+                       )
 
 def main():
     pandas.set_option('display.max_rows', 50)

@@ -41,10 +41,10 @@ class TwoLayersNet(nn.Module):
 
     def __init__(self, layers):
         super(TwoLayersNet, self).__init__()
-        self.fc1 = nn.Linear(18, 40)
-        self.fc2 = nn.Linear(40, 10)
-        #self.fc1 = nn.Linear(layers[0].input, layers[0].output)
-        #self.fc2 = nn.Linear(layers[1].input, layers[1].output)
+        #self.fc1 = nn.Linear(18, 40)
+        #self.fc2 = nn.Linear(40, 10)
+        self.fc1 = nn.Linear(layers[0].input, layers[0].output)
+        self.fc2 = nn.Linear(layers[1].input, layers[1].output)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))

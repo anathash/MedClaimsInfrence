@@ -5,6 +5,7 @@ import gc
 import numpy as np
 from builtins import range
 
+import pandas as pd
 import torch
 import torch.nn as nn
 from sklearn.metrics import mean_squared_error
@@ -108,20 +109,29 @@ def get_network():
 def get_parms(net):
     lr = 0.1
     torch.manual_seed(1234)
-    num_epoch = 1000
+    num_epoch = 500
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=lr)
     return LearningParams(num_epoch=num_epoch, optimizer=optimizer, criterion=criterion)
 
-def learn_shallow_net(method, input_dir):
+def learn_shallow_net(method, input_dir,net):
     # choose optimizer and loss function
-    test_acc = {x: 0 for x in RANK_METHODS[method]}
-    test_mae = {x: 0 for x in RANK_METHODS[method]}
-    train_acc = {x: 0 for x in RANK_METHODS[method]}
-    train_mae = {x: 0 for x in RANK_METHODS[method]}
-    queries = dataHelper.get_queries(input_dir, method)
+    test_acc = {x: [] for x in RANK_METHODS[method]}
+    test_mae = {x: [] for x in RANK_METHODS[method]}
+    train_acc = {x: [] for x in RANK_METHODS[method]}
+    train_mae = {x: [] for x in RANK_METHODS[method]}
+    if method == Method.GROUP_ALL:
+        df = pd.read_csv(input_dir + '\\group_features_by_stance.csv')
+        queries = dataHelper.get_queries_from_df(df)
+    else:
+        queries = dataHelper.get_queries(input_dir, method)
+    queries_stats = {}
+    for test_query in queries:
+        queries_stats[test_query] = {}
+        for rm in RANK_METHODS[method]:
+            queries_stats[test_query][rm] = 0
+
     #dataset = dataHelper.prepare_dataset_loo(input_dir, method)
-    net = get_network()
     params = get_parms(net)
     #for fnames in fnames_list:
     for test_query in queries:
@@ -129,29 +139,63 @@ def learn_shallow_net(method, input_dir):
         collected = gc.collect()
         print("Garbage collector: collected", "%d objects." % collected)
         #data = dataHelper.get_data(input_dir, fnames, method)
-        learner = NNLearner(data, Method.GROUP, net=net, params=params)
+        learner = NNLearner(data, method, net=net, params=params)
         res = learner.learn(method)
         for rm in RANK_METHODS[method]:
-            test_acc[rm].append(res['test_stats'].acc)
-            test_mae[rm].append(res['test_stats'].mae)
-            train_acc[rm].append(res['train_stat'].acc)
-            train_mae[rm].append(res['train_stat'].mae)
+            test_acc[rm].append(res['test_stats'][rm].acc)
+            test_mae[rm].append(res['test_stats'][rm].mae)
+            train_acc[rm].append(res['train_stat'][rm].acc)
+            train_mae[rm].append(res['train_stat'][rm].mae)
+            queries_stats[test_query][rm] +=  res['test_stats'][rm].acc
 
     for rm in RANK_METHODS[method]:
         test_acc_mean = np.mean(test_acc[rm])
         test_mae_mean = np.mean(test_mae[rm])
         train_acc_mean = np.mean(train_acc[rm])
         train_mae_mean = np.mean(train_mae[rm])
-        print(method + ' ' + rm + ' test_acc_mean = ' + str(test_acc_mean))
-        print(method + ' ' + rm + 'test_mae_mean = ' + str(test_mae_mean))
-        print(method + ' ' + rm + 'train_acc_mean = ' + str(train_acc_mean))
-        print(method + ' ' + rm + 'train_mae_mean = ' + str(train_mae_mean))
+        print(str(method) + ' ' + rm)
+        print('--------------------------')
+        print(str(method) + ' ' + rm + ' test_acc_mean = ' + str(test_acc_mean))
+        print(str(method) + ' ' + rm + ' test_mae_mean = ' + str(test_mae_mean))
+        print(str(method) + ' ' + rm + ' train_acc_mean = ' + str(train_acc_mean))
+        print(str(method) + ' ' + rm + ' train_mae_mean = ' + str(train_mae_mean))
+
+ #   print('query stats:')
+ #   for q in queries:
+ #       print(q)
+  #      stats = ' '
+  #      for rm in RANK_METHODS[method]:
+  #          stats += str(queries_stats[q][rm]) + ', '
+  #      print(stats)
+   #     print()
 
 
+def group_all():
+    input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\pubmed\\group7'
+    layers = [Layer(input=34, output=40), Layer(input=40, output=16)]
+    net = TwoLayersNet(layers)
+    learn_shallow_net(Method.GROUP_ALL, input_dir, net)
+
+def pairs():
+    input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\pubmed\\normed\\group5'
+    layers = [Layer(input=12, output=30), Layer(input=30, output=17)]
+    net = TwoLayersNet(layers)
+    learn_shallow_net(Method.PAIRS_QUERY, input_dir, net)
 
 def main():
-    input_dir = 'C:\\research\\falseMedicalClaims\\examples\\model input\\perm\\group1'
-    learn_shallow_net(Method.GROUP, input_dir)
+  #  group_all()
+  #  return
+#    pairs()
+    input_dir = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael\\by_group'
+    #net = get_network()
+    #layers = [Layer(input=18, output=40), Layer(input=40, output=10)]
+    # layers = [Layer(input=30, output=60), Layer(input=60, output=10)]
+    #layers = [Layer(input=14, output=35), Layer(input=35, output=13)]
+    #layers = [Layer(input=31, output=65), Layer(input=65, output=10)]
+    layers = [Layer(input=78, output=20), Layer(input=20, output=10)]
+
+    net = TwoLayersNet(layers)
+    learn_shallow_net(Method.GROUP_ALL, input_dir, net)
 
 if __name__ == '__main__':
     main()
