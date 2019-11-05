@@ -197,19 +197,15 @@ def group_all():
 
 def learn(regressor, data):
     feature_cols_stance = ['stance_1','stance_2','stance_3','stance_4','stance_5','h_index1_mean','current_score1_mean','recent_weighted_citation_count1_mean','recent_weighted_h_index1_mean','citation_count1_mean','h_index2_mean','current_score2_mean','recent_weighted_citation_count2_mean','recent_weighted_h_index2_mean','citation_count2_mean','h_index3_mean','current_score3_mean','recent_weighted_citation_count3_mean','recent_weighted_h_index3_mean','citation_count3_mean','h_index4_mean','current_score4_mean','recent_weighted_citation_count4_mean','recent_weighted_h_index4_mean','citation_count4_mean','h_index5_mean','current_score5_mean','recent_weighted_citation_count5_mean','recent_weighted_h_index5_mean','citation_count5_mean','rel']
-    fc2 = ['stance_1','stance_3','stance_5','h_index1_mean','current_score1_mean','recent_weighted_citation_count1_mean',
-           'recent_weighted_h_index1_mean','citation_count1_mean','contradicted_by_later1_mean','h_index3_mean',
-           'current_score3_mean','recent_weighted_citation_count3_mean','recent_weighted_h_index3_mean','citation_count3_mean',
-           'contradicted_by_later3_mean','h_index5_mean','current_score5_mean',
-           'recent_weighted_citation_count5_mean','recent_weighted_h_index5_mean','citation_count5_mean','contradicted_by_later5_mean','num_ir']
+    tree_rules = export_text(regressor, feature_names=feature_cols_stance)
+    print(tree_rules)
 
     # Fitting Simple Linear Regression model to the data set
     #linear_regressor = LinearRegression()
     X = data.xtrain
     y = data.ytrain
     regressor.fit(X,y)
-    #tree_rules = export_text(regressor, feature_names=feature_cols_stance)
-    #print(tree_rules)
+
     #visualize(regressor)
     # Predicting a new result
     y_pred = regressor.predict(data.xtest)

@@ -319,7 +319,7 @@ def prepare_dataset(split, input_dir, train_size, shrink_scores=False, excluded 
 
 
 def get_class(score): #TODO - define welll
-    if score < 3:
+    if score < 2:
         return 1
     elif score < 5:
         #return 3
