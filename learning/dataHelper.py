@@ -319,7 +319,7 @@ def prepare_dataset(split, input_dir, train_size, shrink_scores=False, excluded 
 
 
 def get_class(score): #TODO - define welll
-    if score < 2:
+    if score < 3:
         return 1
     elif score < 5:
         #return 3
@@ -340,12 +340,14 @@ def gen_test_train_set_query_split_loo2(input_dir, method):
         data.append(Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries))
     return data
 
+
 def get_queries_from_df(df):
     queries = {}
     for i in range(0, len(df.index)):
         qname = df.iloc[i].loc['query']
         queries[qname] = df.iloc[i].to_frame().transpose().drop(columns=['query']).apply(pd.to_numeric)
     return queries
+
 
 def create_report_file(report_fname,queries, learners, predictions, majority_classifier,labels):
     with open(report_fname, 'w', encoding='utf-8', newline='') as out:
@@ -369,3 +371,4 @@ def create_report_file(report_fname,queries, learners, predictions, majority_cla
                 row[model_name + "_acc"] = int(class_label == predictions[model_name][q].class_prediction)
                 row[model_name + "_error"] = math.fabs(value_label - predictions[model_name][q].mean_prediction)
             writer.writerow(row)
+

@@ -1,10 +1,14 @@
 import pandas
 import pandas as pd
+from sklearn import svm
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier, export_text
 from learning import dataHelper
 from learning.NNlearn import NNLearner, get_parms
 from learning.dataHelper import Stats, RANK_METHODS, get_queries_from_df, create_report_file, MajorityClassifier
 from learning.networks import Layer, TwoLayersNet
+from learning.resultsAnalyzer import create_report_files
 from learning.sklearner import SKLearner
 
 
@@ -76,25 +80,35 @@ def test_models(learners, queries, split, method):
 
 
 def group_all():
-    input_dir = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael\\by_group'
+    #input_dir = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael\\by_group'
+    input_dir = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael_sigal_Irit\\by_group'
+    feature_file = "group_features_by_stance_citation_range_1"
     #df = pd.read_csv(input_dir + '\\group_features_by_stance.csv')
     #df = pd.read_csv(input_dir + '\\group_features_by_stance_no_enum.csv')
-    feature_file = "group_features_by_stance_citation_range_10"
+    #feature_file = "group_features_by_stance_citation_range_only_clinical1"
+    #feature_file = "group_features_by_stance_citation_range_only_rev1"
+    #feature_file = "group_features_by_stance_citation_range_1_no_rel"
+    #feature_file = "group_features_by_stance_citation_range_1_no_stance"
+    #feature_file = "group_features_by_stance_citation_range_1_no_stance_no_rel"
     df = pd.read_csv(input_dir + '\\' + feature_file + '.csv')
     queries = get_queries_from_df(df)
     labels = {q:int(queries[q].label) for q in queries}
     mc = MajorityClassifier(input_dir + '\\majority.csv')
-    decisionTreeLearner = SKLearner(DecisionTreeClassifier(random_state=0))
-    layers = [Layer(input=5, output=10), Layer(input=10, output=10)]
+    decisionTreeLearner1 = SKLearner(DecisionTreeClassifier(random_state=0))
+    decisionTreeLearner2 = SKLearner(RandomForestClassifier(random_state=0))
+    svcLearner = SKLearner(svm.SVC(gamma='scale'))
+    #layers = [Layer(input=5, output=10), Layer(input=10, output=10)]
     #layers = [Layer(input=31, output=20), Layer(input=20, output=10)]
-    #layers = [Layer(input=26, output=20), Layer(input=20, output=10)]
+    layers = [Layer(input=36, output=20), Layer(input=20, output=10)]
     net = TwoLayersNet(layers)
     params = get_parms(net)
     nnlearner = NNLearner(dataHelper.Method.GROUP_ALL, net=net, params=params)
-    learners = [decisionTreeLearner]
+    learners = [decisionTreeLearner1, decisionTreeLearner2,svcLearner ]
     #learners = [nnlearner]
     predictions = test_models(learners, queries, dataHelper.Split.BY_QUERY, dataHelper.Method.GROUP_ALL)
-    create_report_file(input_dir + '\\'+feature_file+'_report.csv',queries=queries,
+    query_report_file_name =input_dir + '\\reports\\'+feature_file+'query_report.csv'
+    metrics_report_file_name =input_dir + '\\reports\\'+feature_file+'metrics_report.csv'
+    create_report_files(query_report_file_name, metrics_report_file_name, queries=queries,
                        learners = learners,predictions=predictions,majority_classifier=mc,labels=labels
                        )
 
