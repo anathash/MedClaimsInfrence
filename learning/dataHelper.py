@@ -319,6 +319,8 @@ def prepare_dataset(split, input_dir, train_size, shrink_scores=False, excluded 
 
 
 def get_class(score): #TODO - define welll
+    if score < 0:
+        return -1
     if score < 3:
         return 1
     elif score < 5:
@@ -326,6 +328,7 @@ def get_class(score): #TODO - define welll
         return 3
     else:
         return 5
+
 
 def gen_test_train_set_query_split_loo2(input_dir, method):
     filenames = os.listdir(input_dir)

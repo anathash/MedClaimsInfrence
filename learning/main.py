@@ -82,12 +82,14 @@ def test_models(learners, queries, split, method):
 def group_all():
     #input_dir = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael\\by_group'
     input_dir = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael_sigal_Irit\\by_group'
-    feature_file = "group_features_by_stance_citation_range_1"
+    feature_file = "group_features_by_stance_citation_range_all"
+    #feature_file = "rel_only_group_features_by_stance_citation_range_1"
+    #feature_file = "group_features_by_stance_citation_range_1"
     #df = pd.read_csv(input_dir + '\\group_features_by_stance.csv')
     #df = pd.read_csv(input_dir + '\\group_features_by_stance_no_enum.csv')
     #feature_file = "group_features_by_stance_citation_range_only_clinical1"
     #feature_file = "group_features_by_stance_citation_range_only_rev1"
-    #feature_file = "group_features_by_stance_citation_range_1_no_rel"
+
     #feature_file = "group_features_by_stance_citation_range_1_no_stance"
     #feature_file = "group_features_by_stance_citation_range_1_no_stance_no_rel"
     df = pd.read_csv(input_dir + '\\' + feature_file + '.csv')
@@ -103,7 +105,7 @@ def group_all():
     net = TwoLayersNet(layers)
     params = get_parms(net)
     nnlearner = NNLearner(dataHelper.Method.GROUP_ALL, net=net, params=params)
-    learners = [decisionTreeLearner1, decisionTreeLearner2,svcLearner ]
+    learners = [decisionTreeLearner1, decisionTreeLearner2]
     #learners = [nnlearner]
     predictions = test_models(learners, queries, dataHelper.Split.BY_QUERY, dataHelper.Method.GROUP_ALL)
     query_report_file_name =input_dir + '\\reports\\'+feature_file+'query_report.csv'

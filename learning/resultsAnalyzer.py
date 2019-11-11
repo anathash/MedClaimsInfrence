@@ -3,102 +3,8 @@ import math
 
 from numpy import mean
 
-from learning.dataHelper import get_class
-
-
-class Metrics:
-    def __init__(self):
-        self.val_false_optimism = []
-        self.val_false_pessimism = []
-        self.class_false_optimism = []
-        self.class_false_pessimism = []
-        self.conf = {'reject_acc': 0,
-                     'reject_as_support': 0,
-                     'reject_as_neutral': 0,
-                     'neutral_as_reject': 0,
-                     'neutral_acc': 0,
-                     'neutral_as_support': 0,
-                     'support_as_reject': 0,
-                     'support_as_neutral': 0,
-                     'support_acc': 0,
-                     'actual_rejects': 0,
-                     'actual_neutral': 0,
-                     'actual_support': 0,
-                     'val_false_optimism_mae': 0,
-                     'val_false_pessimism_mae': 0,
-                     'class_false_optimism_mae': 0,
-                     'class_false_pessimism_mae': 0,
-                     'val_false_optimism_num': 0,
-                     'val_false_pessimism_num': 0,
-                     'class_false_optimism_num': 0,
-                     'class_false_pessimism_num': 0,
-                     'val_false_optimism_rate': 0,
-                     'val_false_pessimism_rate': 0,
-                     'class_false_optimism_rate': 0,
-                     'class_false_pessimism_rate': 0,
-                     }
-
-    @staticmethod
-    def update_err(actual, prediction, false_pes, false_opt):
-        err = actual - prediction
-        if err > 0:
-            false_pes.append(err)
-        elif err < 0:
-            false_opt.append(math.fabs(err))
-
-    def update_prediction_err(self, actual_val, prediction_val, actual_class, prediction_class):
-        self.update_err(actual=actual_val, prediction=prediction_val,
-                        false_pes=self.val_false_pessimism, false_opt=self.val_false_optimism)
-        self.update_err(actual=actual_class, prediction=prediction_class,
-                        false_pes=self.class_false_pessimism, false_opt=self.class_false_optimism)
-
-    def process_results(self):
-        self.conf['val_false_optimism_mae'] = mean(self.val_false_optimism)
-        self.conf['val_false_pessimism_mae'] = mean(self.val_false_pessimism)
-        self.conf['class_false_optimism_mae'] = mean(self.class_false_optimism)
-        self.conf['class_false_pessimism_mae'] = mean(self.class_false_pessimism)
-
-        self.conf['val_false_optimism_num'] = len(self.val_false_optimism)
-        self.conf['val_false_pessimism_num'] = len(self.val_false_pessimism)
-        self.conf['class_false_optimism_num'] = len(self.class_false_optimism)
-        self.conf['class_false_pessimism_num'] = len(self.class_false_pessimism)
-
-        all_size = self.conf['actual_rejects'] + self.conf['actual_neutral'] + self.conf['actual_support']
-        self.conf['val_false_optimism_rate'] = len(self.val_false_optimism) /all_size
-        self.conf['val_false_pessimism_rate'] = len(self.val_false_pessimism)/all_size
-        self.conf['class_false_optimism_rate'] = len(self.class_false_optimism)/all_size
-        self.conf['class_false_pessimism_rate'] = len(self.class_false_pessimism)/all_size
-
-    def update_confusion_counters(self, actual_counter, as_reject_counter, as_neutral_counter, as_support_counter,
-                                  prediction_class):
-        self.conf[actual_counter] += 1
-        if prediction_class == 1:
-            self.conf[as_reject_counter] += 1
-            return
-        if prediction_class == 3:
-            self.conf[as_neutral_counter] += 1
-            return
-        elif prediction_class == 5:
-            self.conf[as_support_counter] += 1
-            return
-
-    def update_confusion(self, actual_class, prediction_class):
-        if actual_class == 1:
-            self.update_confusion_counters(actual_counter='actual_rejects', as_reject_counter='reject_acc',
-                                                as_neutral_counter='reject_as_neutral',
-                                                as_support_counter='reject_as_support',
-                                                prediction_class=prediction_class)
-        if actual_class == 3:
-            self.update_confusion_counters(actual_counter='actual_neutral', as_reject_counter='neutral_as_reject',
-                                                as_neutral_counter='neutral_acc',
-                                                as_support_counter='neutral_as_support',
-                                                prediction_class=prediction_class)
-
-        if actual_class == 5:
-            self.update_confusion_counters(actual_counter='actual_support', as_reject_counter='support_as_reject',
-                                                as_neutral_counter='support_as_neutral',
-                                                as_support_counter='support_acc',
-                                                prediction_class=prediction_class)
+from learning.dataHelper import get_class, Prediction
+from learning.metrics import Metrics, METRICS_NAMES
 
 
 def create_report_files(report_fname, confusion_fname, queries, learners, predictions, majority_classifier, labels):
@@ -114,7 +20,7 @@ def create_report_files(report_fname, confusion_fname, queries, learners, predic
         fieldnames.extend([model_name + '_val_pessim' for model_name in model_names])
         fieldnames.extend([model_name + '_val_optim' for model_name in model_names])
         fieldnames.extend([model_name + '_class_pessim' for model_name in model_names])
-        fieldnames.extend([model_name + '_calss_optim' for model_name in model_names])
+        fieldnames.extend([model_name + '_class_optim' for model_name in model_names])
         writer = csv.DictWriter(out, fieldnames=fieldnames)
         writer.writeheader()
         metrics = {model_name:Metrics() for model_name in model_names}
@@ -138,7 +44,7 @@ def create_report_files(report_fname, confusion_fname, queries, learners, predic
                 row[model_name + "_val_pessim"] = 1 if predicted_val < value_label else 0
                 row[model_name + "_val_optim"] = 1 if predicted_val > value_label else 0
                 row[model_name + "_class_pessim"] = 1 if predicted_class < class_label else 0
-                row[model_name + "_calss_optim"] = 1 if predicted_class > class_label else 0
+                row[model_name + "_class_optim"] = 1 if predicted_class > class_label else 0
             writer.writerow(row)
 
         for model_name in model_names:
@@ -155,6 +61,130 @@ def create_report_files(report_fname, confusion_fname, queries, learners, predic
                     row[model_name] = metrics[model_name].conf[k]
                 writer.writerow(row)
 
+
+def get_results_from_file(filename):
+    with open(filename, encoding='utf-8', newline='') as queries_csv:
+        reader = csv.DictReader(queries_csv)
+        fieldnames = reader.fieldnames
+        model_names = []
+        for field in fieldnames:
+            split_field = field.split('_')
+            if len(split_field) > 1 and split_field[1]=='value':
+                model_names.append(split_field[0])
+        results = []
+        for row in reader:
+            query_name = row['query']
+            value_label = row['value_label']
+            class_label = get_class(value_label)
+            result_entry = {'query': query_name, 'value_label': value_label, 'class_label': class_label}
+            for model in model_names:
+                model_value_entry = model + '_value'
+                model_value_prediction = int(row[model_value_entry])
+                model_class_prediction = get_class(model_value_prediction)
+                result_entry[model] = Prediction(model_value_prediction, model_class_prediction)
+                results.append(result_entry)
+        return results, model_names
+
+
+def get_model_names_from_fieldnames(fieldnames):
+    model_names = []
+    for field in fieldnames:
+        split_field = field.split('_')
+        if len(split_field) > 1 and split_field[1] == 'value':
+            model_names.append(split_field[0])
+    return model_names
+
+
+def gen_actual_labels_dict(labels_filename):
+    labels = {}
+    with open(labels_filename,'r', encoding='utf-8', newline='') as labels_csv:
+        reader = csv.DictReader(labels_csv)
+        for row in reader:
+            query = row['query']
+            value_label = row['value_label']
+            labels[query] = value_label
+    return labels
+
+
+def compute_class_label_distribution(labels):
+    dist = {'actual_rejects':0,'actual_neutral':0,'actual_support':0}
+    for q, value_label in labels.items():
+        class_label = get_class(int(value_label))
+        if class_label == 1:
+            dist['actual_rejects'] += 1
+        elif class_label == 3:
+            dist['actual_neutral'] += 1
+        elif class_label == 5:
+            dist['actual_support'] += 1
+    return dist
+
+def gen_metrics(query_filename, actual_values):
+    with open(query_filename,'r',  newline='') as queries_csv:
+        reader = csv.DictReader(queries_csv)
+        fieldnames = reader.fieldnames
+        model_names = get_model_names_from_fieldnames(fieldnames)
+        label_dist = compute_class_label_distribution(actual_values)
+        metrics = {model_name: Metrics(label_dist) for model_name in model_names}
+        for row in reader:
+            query = row['query']
+            value_label = int(actual_values[query])
+            if 'value_label' in row:
+                assert(value_label == int(row['value_label']))
+            class_label = get_class(value_label)
+            for model in model_names:
+                model_value_entry = model + '_value'
+                model_value_prediction = float(row[model_value_entry])
+                model_class_prediction = get_class(model_value_prediction)
+                metrics[model].update_metrics(value_label=value_label,model_value_prediction= model_value_prediction,
+                                      class_label=class_label,model_class_prediction=model_class_prediction)
+        for model_name in model_names:
+            metrics[model_name].process_results()
+    return metrics
+
+
+def gen_metrics_comparison(folder, query_filenames, label_file, cmp_filename):
+    metrics = {}
+    fieldnames = ['metric_name']
+    metric_names = METRICS_NAMES
+    actual_values = gen_actual_labels_dict(label_file)
+    for f in query_filenames:
+        metrics_entry = gen_metrics(query_filename=folder+f+'.csv', actual_values=actual_values)
+        fieldnames.extend([f+'_'+x for x in metrics_entry.keys()])
+        metrics[f] = metrics_entry
+
+    with open(folder+cmp_filename, 'w', encoding='utf-8', newline='') as out:
+        writer = csv.DictWriter(out, fieldnames=fieldnames)
+        writer.writeheader()
+        for metric in metric_names:
+            row = {'metric_name': metric}
+            for f in query_filenames:
+                for model in metrics[f]:
+                    row[f + '_' + model] = metrics[f][model].conf[metric]
+            writer.writerow(row)
+
+def merge_metrices(folder, files, merge_file_name):
+    metrics = {}
+    metric_names = set()
+    fieldnames = {}
+    for f in files:
+        metrics[f] = {}
+        with open(folder + f, 'r', encoding='utf-8', newline='') as f_csv:
+            reader = csv.DictReader(f_csv)
+            fieldnames[f]= [x for x in reader.fieldnames if x != 'metric_name']
+            for row in reader:
+                metric_name = row['metric_name']
+                metric_names.update(metric_name)
+                metrics[f][metric_name] = row
+
+    with open(merge_file_name, 'w', encoding='utf-8', newline='') as out:
+        writer = csv.DictWriter(out, fieldnames=fieldnames)
+        writer.writeheader()
+        for metric in metric_names:
+            row = {'metric_name':metric_name}
+            for f in files:
+                for field in fieldnames[f]:
+                    row[f + '_' + field] = metrics[f][metric][field]
+        writer.writerow(row)
 
 
 def get_year_dict(query_file):
@@ -222,15 +252,23 @@ def group_by_year(ranges, result_file, query_file, file_prefix):
                 writer.writerow(row)
 
 
+def group_by_year_exp():
+    folder = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael_sigal_Irit\\by_group\\reports\\'
+    # ranges = [(1998, 2002), (2003, 2007), (2007, 2011), (2011, 2015), (2016, 2021)]
+    # ranges = [(1998, 2010), (2010, 2014), (2014, 2020)]
+    ranges = [(1998, 2014), (2015, 2020)]
+    # ranges = [(1998, 2000), (2001, 2003), (2012, 2019)]
+    group_by_year(ranges, folder + 'group_features_by_stance_citation_range_1query_report.csv',
+                  'C:\\research\\falseMedicalClaims\\ECAI\\examples\\classified\\queries1_2.csv',
+                  folder + 'citation_range_1_by_years_')
+
+
 def main():
     folder = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael_sigal_Irit\\by_group\\reports\\'
-    #ranges = [(1998, 2002), (2003, 2007), (2007, 2011), (2011, 2015), (2016, 2021)]
-    #ranges = [(1998, 2010), (2010, 2014), (2014, 2020)]
-    ranges = [(1998, 2014), (2015, 2020)]
-    #ranges = [(1998, 2000), (2001, 2003), (2012, 2019)]
-    group_by_year(ranges, folder + 'group_features_by_stance_citation_range_1query_report.csv',
-                           'C:\\research\\falseMedicalClaims\\ECAI\\examples\\classified\\queries1_2.csv',
-                  folder + 'citation_range_1_by_years_')
+    files = ['google labels', 'majority','group_features_by_stance_citation_range_allquery_report']
+    label_file = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael_sigal_Irit\\labels.csv'
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML.csv')
+
 if __name__ == '__main__':
     main()
 
