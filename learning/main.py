@@ -8,7 +8,7 @@ from learning import dataHelper
 from learning.NNlearn import NNLearner, get_parms
 from learning.dataHelper import Stats, RANK_METHODS, get_queries_from_df, create_report_file, MajorityClassifier
 from learning.networks import Layer, TwoLayersNet
-from learning.resultsAnalyzer import create_report_files
+from learning.resultsAnalyzer import create_query_report_file, gen_metrics_comparison, gen_all_metrics_comparison
 from learning.sklearner import SKLearner
 
 
@@ -80,9 +80,8 @@ def test_models(learners, queries, split, method):
 
 
 def group_all():
-    #input_dir = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael\\by_group'
-    input_dir = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael_sigal_Irit\\by_group'
-    feature_file = "group_features_by_stance_citation_range_all"
+
+    #input_dir = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael_sigal_Irit\\by_group'
     #feature_file = "rel_only_group_features_by_stance_citation_range_1"
     #feature_file = "group_features_by_stance_citation_range_1"
     #df = pd.read_csv(input_dir + '\\group_features_by_stance.csv')
@@ -92,27 +91,41 @@ def group_all():
 
     #feature_file = "group_features_by_stance_citation_range_1_no_stance"
     #feature_file = "group_features_by_stance_citation_range_1_no_stance_no_rel"
+
+
+    input_folder = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\'
+    cls = 'all_equal_weights'
+    input_dir = input_folder + cls +'\\by_group'
+    feature_file = "group_features_by_stance"
     df = pd.read_csv(input_dir + '\\' + feature_file + '.csv')
     queries = get_queries_from_df(df)
     labels = {q:int(queries[q].label) for q in queries}
-    mc = MajorityClassifier(input_dir + '\\majority.csv')
+    #mc = MajorityClassifier(input_dir + '\\majority.csv')
     decisionTreeLearner1 = SKLearner(DecisionTreeClassifier(random_state=0))
     decisionTreeLearner2 = SKLearner(RandomForestClassifier(random_state=0))
     svcLearner = SKLearner(svm.SVC(gamma='scale'))
     #layers = [Layer(input=5, output=10), Layer(input=10, output=10)]
     #layers = [Layer(input=31, output=20), Layer(input=20, output=10)]
-    layers = [Layer(input=36, output=20), Layer(input=20, output=10)]
+    layers = [Layer(input=39, output=20), Layer(input=20, output=10)]
     net = TwoLayersNet(layers)
     params = get_parms(net)
     nnlearner = NNLearner(dataHelper.Method.GROUP_ALL, net=net, params=params)
-    learners = [decisionTreeLearner1, decisionTreeLearner2]
+    learners = [ decisionTreeLearner1, decisionTreeLearner2]
     #learners = [nnlearner]
     predictions = test_models(learners, queries, dataHelper.Split.BY_QUERY, dataHelper.Method.GROUP_ALL)
-    query_report_file_name =input_dir + '\\reports\\'+feature_file+'query_report.csv'
-    metrics_report_file_name =input_dir + '\\reports\\'+feature_file+'metrics_report.csv'
-    create_report_files(query_report_file_name, metrics_report_file_name, queries=queries,
-                       learners = learners,predictions=predictions,majority_classifier=mc,labels=labels
-                       )
+    reports_dir =input_dir + '\\reports\\'
+    query_report_file_name = feature_file + '_query_report.csv'
+    query_report_full_file_name =reports_dir+query_report_file_name
+    #metrics_report_file_name =input_dir + '\\reports\\'+feature_file+'_metrics_report.csv'
+    create_query_report_file(query_report_full_file_name, queries, learners, predictions, labels)
+    files = ['google labels', 'majority', query_report_file_name]
+    label_file =  input_folder + cls +'\\labels.csv'
+    gen_all_metrics_comparison(folder=reports_dir,files= files,label_file=label_file)
+    #gen_metrics_comparison(folder=reports_dir, query_filenames=files, label_file=label_file,
+    #                       cmp_filename=feature_file+'google_maj_ML.csv')
+#    create_report_files(query_report_file_name, metrics_report_file_name, queries=queries,
+#                       learners = learners,predictions=predictions,labels=labels)
+
 
 def main():
     pandas.set_option('display.max_rows', 50)

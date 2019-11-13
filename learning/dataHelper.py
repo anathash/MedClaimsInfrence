@@ -18,6 +18,13 @@ class Method(Enum):
     GROUP_ALL = 4
 
 
+class ValToClassMode(Enum):
+    THREE_CLASSES_PESSIMISTIC = 1
+    THREE_CLASSES_OPTIMISTIC = 2
+    FOUR_CLASSES = 3
+
+
+
 #LABEL_PREDICTION_FUNCS = {Method.PAIRS_ALL: group_prediction,
 #                          Method.PAIRS_ALL: pairs_prediction,
 #                          Method.PAIRS_QUERY:pairs_prediction}
@@ -195,7 +202,7 @@ def gen_test_train_set_query_split(input_dir, train_percent, shrink_scores, excl
 
 def group_prediction(y_predicted):
     mean_prediction = np.mean(y_predicted)
-    class_prediction = get_class(mean_prediction)
+    class_prediction = get_class(mean_prediction, ValToClassMode.THREE_CLASSES_PESSIMISTIC)
     return Prediction(mean_prediction=mean_prediction, class_prediction = class_prediction)
 
 
@@ -316,18 +323,12 @@ def prepare_dataset(split, input_dir, train_size, shrink_scores=False, excluded 
         # split x and y (feature and target)
 
 
-
-
-def get_class(score): #TODO - define welll
-    if score < 0:
-        return -1
-    if score < 3:
-        return 1
-    elif score < 5:
-        #return 3
-        return 3
-    else:
-        return 5
+def get_class(score, mode:ValToClassMode): #TODO - define welll
+    val_to_class= {}
+    val_to_class[ValToClassMode.THREE_CLASSES_PESSIMISTIC] = {-2:0, -1:0,1:1,2:1,3:3,4:3,5:5} #neutral_wins
+    val_to_class[ValToClassMode.THREE_CLASSES_OPTIMISTIC] = {-2:0, -1: 0, 1: 1, 2: 1, 3: 3, 4: 5, 5: 5}  # support_wins
+    val_to_class[ValToClassMode.FOUR_CLASSES] = {-2:0, -1: 0, 1: 1, 2: 1, 3: 3, 4: 4, 5: 5}  # 4 classess
+    return val_to_class[mode][score]
 
 
 def gen_test_train_set_query_split_loo2(input_dir, method):

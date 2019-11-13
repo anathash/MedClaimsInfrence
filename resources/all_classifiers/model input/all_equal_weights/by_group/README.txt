@@ -1,0 +1,11 @@
+long_dir = 
+short_dir = C:\research\falseMedicalClaims\ECAI\examples\classified\all_equal_weights\
+include_irrelevant = False
+examples_per_file = None
+review_start_range = 15
+review_end_range = 1
+group_size = 1
+cochrane_search_range = 15
+remove_stance = None
+perm = False
+rel = rel

@@ -3,15 +3,15 @@ import math
 
 from numpy import mean
 
-from learning.dataHelper import get_class, Prediction
+from learning.dataHelper import get_class, Prediction, ValToClassMode
 from learning.metrics import Metrics, METRICS_NAMES
 
 
-def create_report_files(report_fname, confusion_fname, queries, learners, predictions, majority_classifier, labels):
+def create_report_files_old(report_fname, confusion_fname, queries, learners, predictions, labels):
     with open(report_fname, 'w', encoding='utf-8', newline='') as out:
         model_names = [learner.model_name() for learner in learners]
         model_names.append('majority')
-        predictions['majority'] = majority_classifier.get_predictions()
+        #predictions['majority'] = majority_classifier.get_predictions()
         fieldnames = ['query', 'value_label', 'class_label']
         fieldnames.extend([model_name + '_class' for model_name in model_names])
         fieldnames.extend([model_name + '_value' for model_name in model_names])
@@ -62,6 +62,37 @@ def create_report_files(report_fname, confusion_fname, queries, learners, predic
                 writer.writerow(row)
 
 
+def create_query_report_file(report_fname, queries, learners, predictions, labels):
+    with open(report_fname, 'w', encoding='utf-8', newline='') as out:
+        model_names = [learner.model_name() for learner in learners]
+        fieldnames = ['query', 'value_label', 'class_label']
+        fieldnames.extend([model_name + '_class' for model_name in model_names])
+        fieldnames.extend([model_name + '_value' for model_name in model_names])
+        fieldnames.extend([model_name + '_acc' for model_name in model_names])
+        fieldnames.extend([model_name + '_error' for model_name in model_names])
+        fieldnames.extend([model_name + '_val_pessim' for model_name in model_names])
+        fieldnames.extend([model_name + '_val_optim' for model_name in model_names])
+        fieldnames.extend([model_name + '_class_pessim' for model_name in model_names])
+        fieldnames.extend([model_name + '_class_optim' for model_name in model_names])
+        writer = csv.DictWriter(out, fieldnames=fieldnames)
+        writer.writeheader()
+        for q in queries:
+            value_label = labels[q]
+            class_label = get_class(value_label, ValToClassMode.THREE_CLASSES_PESSIMISTIC)
+            row = {'query': q, 'value_label': value_label, 'class_label': class_label}
+            for model_name in model_names:
+                predicted_class = predictions[model_name][q].class_prediction
+                predicted_val = predictions[model_name][q].mean_prediction
+                row[model_name + "_class"] = predicted_class
+                row[model_name + "_value"] = predicted_val
+                row[model_name + "_acc"] = int(class_label == predicted_class)
+                row[model_name + "_error"] = math.fabs(value_label - predicted_val)
+                row[model_name + "_val_pessim"] = 1 if predicted_val < value_label else 0
+                row[model_name + "_val_optim"] = 1 if predicted_val > value_label else 0
+                row[model_name + "_class_pessim"] = 1 if predicted_class < class_label else 0
+                row[model_name + "_class_optim"] = 1 if predicted_class > class_label else 0
+            writer.writerow(row)
+
 def get_results_from_file(filename):
     with open(filename, encoding='utf-8', newline='') as queries_csv:
         reader = csv.DictReader(queries_csv)
@@ -106,60 +137,75 @@ def gen_actual_labels_dict(labels_filename):
     return labels
 
 
-def compute_class_label_distribution(labels):
-    dist = {'actual_rejects':0,'actual_neutral':0,'actual_support':0}
+def compute_class_label_distribution(labels, mode):
+    dist = {'actual_rejects':0,'actual_neutral':0,'actual_support':0, 'actual_initial':0}
     for q, value_label in labels.items():
-        class_label = get_class(int(value_label))
+        class_label = get_class(int(value_label), mode)
         if class_label == 1:
             dist['actual_rejects'] += 1
         elif class_label == 3:
             dist['actual_neutral'] += 1
+        elif class_label == 4:
+            dist['actual_initial'] += 1
         elif class_label == 5:
             dist['actual_support'] += 1
     return dist
 
-def gen_metrics(query_filename, actual_values):
+def gen_metrics(query_filename, actual_values, mode):
     with open(query_filename,'r',  newline='') as queries_csv:
         reader = csv.DictReader(queries_csv)
         fieldnames = reader.fieldnames
         model_names = get_model_names_from_fieldnames(fieldnames)
-        label_dist = compute_class_label_distribution(actual_values)
-        metrics = {model_name: Metrics(label_dist) for model_name in model_names}
+        label_dist = compute_class_label_distribution(actual_values, mode)
+        metrics = {model_name: Metrics(label_dist, mode) for model_name in model_names}
         for row in reader:
             query = row['query']
+            if not query in actual_values:
+                continue
             value_label = int(actual_values[query])
             if 'value_label' in row:
                 assert(value_label == int(row['value_label']))
-            class_label = get_class(value_label)
+                #move  class infrence to metrics. In metrics - gen 2 forms of classes, 2 metrics, one for each model
             for model in model_names:
                 model_value_entry = model + '_value'
                 model_value_prediction = float(row[model_value_entry])
-                model_class_prediction = get_class(model_value_prediction)
-                metrics[model].update_metrics(value_label=value_label,model_value_prediction= model_value_prediction,
-                                      class_label=class_label,model_class_prediction=model_class_prediction)
+                metrics[model].update_metrics(value_label=value_label,model_value_prediction= model_value_prediction)
         for model_name in model_names:
             metrics[model_name].process_results()
     return metrics
 
 
-def gen_metrics_comparison(folder, query_filenames, label_file, cmp_filename):
+def gen_all_metrics_comparison(folder, files, label_file):
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC)
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC)
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.FOUR_CLASSES)
+
+def gen_metrics_comparison(folder, query_filenames, label_file, cmp_filename, mode):
     metrics = {}
     fieldnames = ['metric_name']
-    metric_names = METRICS_NAMES
+
+    if mode == ValToClassMode.FOUR_CLASSES: #4 classes
+        metric_names = METRICS_NAMES
+    else:
+        metric_names = [x for x in METRICS_NAMES if 'initial' not in x]
+
     actual_values = gen_actual_labels_dict(label_file)
     for f in query_filenames:
-        metrics_entry = gen_metrics(query_filename=folder+f+'.csv', actual_values=actual_values)
-        fieldnames.extend([f+'_'+x for x in metrics_entry.keys()])
+        query_filename = folder+f
+        if not query_filename.endswith('.csv'):
+            query_filename +='.csv'
+        metrics_entry = gen_metrics(query_filename=query_filename, actual_values=actual_values, mode=mode)
+        fieldnames.extend([x for x in metrics_entry.keys()])
         metrics[f] = metrics_entry
 
-    with open(folder+cmp_filename, 'w', encoding='utf-8', newline='') as out:
+    with open(folder+cmp_filename+'_'+str(mode.name)+'.csv', 'w', encoding='utf-8', newline='') as out:
         writer = csv.DictWriter(out, fieldnames=fieldnames)
         writer.writeheader()
         for metric in metric_names:
             row = {'metric_name': metric}
             for f in query_filenames:
                 for model in metrics[f]:
-                    row[f + '_' + model] = metrics[f][model].conf[metric]
+                    row[model] = metrics[f][model].conf[metric]
             writer.writerow(row)
 
 def merge_metrices(folder, files, merge_file_name):
@@ -263,11 +309,37 @@ def group_by_year_exp():
                   folder + 'citation_range_1_by_years_')
 
 
-def main():
+def cmp_Yael_sigal_Irit():
     folder = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael_sigal_Irit\\by_group\\reports\\'
-    files = ['google labels', 'majority','group_features_by_stance_citation_range_allquery_report']
+    files = ['google labels', 'majority','group_features_by_stance_shrinkquery_report']
     label_file = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael_sigal_Irit\\labels.csv'
     gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML.csv')
+
+def cmp_Yael():
+    folder = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael\\by_group\\reports\\'
+    files = ['google labels', 'majority','group_features_by_stance_query_report']
+    label_file = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael\\labels_all.csv'
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_Yael.csv')
+
+
+def cmp_Sigal():
+    folder = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Sigal\\by_group\\reports\\'
+    files = ['google labels', 'majority','group_features_by_stancequery_report']
+    label_file = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\Yael\\labels.csv'
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_Yael.csv')
+
+
+def cmp_sample_1_2_all():
+    folder = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\\sample_1_2_only_strong_classifiers\\by_group\\reports\\'
+    files = ['google labels', 'majority','group_features_by_stancequery_report']
+    label_file = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\\sample_1_2_only_strong_classifiers\\labels.csv'
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC)
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC)
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.FOUR_CLASSES)
+
+def main():
+    #cmp_Yael()
+    cmp_sample_1_2_all()
 
 if __name__ == '__main__':
     main()
