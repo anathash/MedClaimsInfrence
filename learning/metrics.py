@@ -40,6 +40,7 @@ METRICS_NAMES = ['reject_acc',
                  'num_queries',
                  'num_rel',
                  'acc',
+                 'mae',
                  'support_acc_percent',
                  'initial_acc_percent',
                  'neutral_acc_percent',
@@ -54,6 +55,7 @@ class Metrics:
         self.class_false_optimism = []
         self.class_false_pessimism = []
         self.mode = mode
+        self.mae = []
         self.conf ={x:0 for x in METRICS_NAMES}
         for k,v in initial_metrics.items():
             assert (k in self.conf)
@@ -91,8 +93,9 @@ class Metrics:
         self.conf['val_false_pessimism_rate'] = len(self.val_false_pessimism)/all_size
         self.conf['class_false_optimism_rate'] = len(self.class_false_optimism)/all_size
         self.conf['class_false_pessimism_rate'] = len(self.class_false_pessimism)/all_size
+        self.conf['acc'] = (self.conf['support_acc'] + self.conf['neutral_acc'] +self.conf['reject_acc']) /len((self.mae))
+        self.conf['mae'] = mean(self.mae)
 
-        self.conf['acc'] = (self.conf['support_acc'] + self.conf['neutral_acc'] +self.conf['reject_acc']) /all_size
         self.conf['support_acc_percent'] = 0 if self.conf['actual_support'] == 0 else self.conf['support_acc'] / self.conf['actual_support']
         self.conf['neutral_acc_percent'] = 0 if self.conf['actual_neutral'] == 0 else self.conf['neutral_acc'] / self.conf['actual_neutral']
         self.conf['reject_acc_percent'] = 0 if self.conf['actual_rejects'] == 0 else self.conf['reject_acc'] / self.conf['actual_rejects']
@@ -142,6 +145,8 @@ class Metrics:
                                                 prediction_class=prediction_class)
 
     def update_metrics(self,value_label, model_value_prediction):
+        if model_value_prediction > 0:
+            self.mae.append(math.fabs(model_value_prediction-value_label))
         class_label = get_class(value_label, self.mode)
         model_class_prediction = get_class(model_value_prediction, self.mode)
         if model_value_prediction < 0:

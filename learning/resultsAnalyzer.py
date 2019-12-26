@@ -176,9 +176,9 @@ def gen_metrics(query_filename, actual_values, mode):
 
 
 def gen_all_metrics_comparison(folder, files, label_file):
-    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC)
-    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC)
-    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.FOUR_CLASSES)
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML', mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC)
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML', mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC)
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML', mode=ValToClassMode.FOUR_CLASSES)
 
 def gen_metrics_comparison(folder, query_filenames, label_file, cmp_filename, mode):
     metrics = {}
@@ -330,16 +330,47 @@ def cmp_Sigal():
 
 
 def cmp_sample_1_2_all():
-    folder = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\\sample_1_2_only_strong_classifiers\\by_group\\reports\\'
-    files = ['google labels', 'majority','group_features_by_stancequery_report']
-    label_file = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\\sample_1_2_only_strong_classifiers\\labels.csv'
-    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC)
-    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC)
-    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML_no_shrink', mode=ValToClassMode.FOUR_CLASSES)
+    folder = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\all_equal_weights\\by_group\\reports\\'
+    files = ['google labels', 'majority','group_features_by_stance_query_report']
+    label_file = 'C:\\research\\falseMedicalClaims\\ECAI\\model input\\all_equal_weights\\labels.csv'
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML', mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC)
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML', mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC)
+    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML', mode=ValToClassMode.FOUR_CLASSES)
+
+
+def gen_google_labels_error_report(label_file, google_file, output_file):
+    actual_values = gen_actual_labels_dict(label_file)
+    google_stats = []
+    with open(google_file, 'r', newline='') as res_csv:
+        res_reader = csv.DictReader(res_csv)
+        for row in res_reader:
+            query = row['query']
+            value_label =int(actual_values[query])
+            actual_class = get_class(value_label, ValToClassMode.THREE_CLASSES_PESSIMISTIC)
+            predicted_value = int(row['Google_value'])
+            if predicted_value <0:
+                continue
+            predicted_class = get_class(predicted_value,ValToClassMode.THREE_CLASSES_PESSIMISTIC)
+            mae = math.fabs(value_label-predicted_value)
+            acc = int(actual_class == predicted_class)
+            google_stats.append({'query':query,'value_label':value_label,'class_label':actual_class,
+                        'predicted_value':predicted_value,'predicted_class':predicted_class,
+                        'google_mae':mae,'google_acc': acc})
+
+    with open(output_file , 'w', encoding='utf-8', newline='') as out:
+        fieldnames = ['query','value_label','class_label','predicted_value','predicted_class','google_mae','google_acc']
+        writer = csv.DictWriter(out, fieldnames=fieldnames)
+        writer.writeheader()
+        for stat_entry in google_stats:
+            writer.writerow(stat_entry)
+
 
 def main():
-    #cmp_Yael()
-    cmp_sample_1_2_all()
+    #cmp_sample_1_2_all()
+
+    gen_google_labels_error_report(label_file='C:\\research\\falseMedicalClaims\\ECAI\\model input\\all_equal_weights\\labels.csv',
+                                   google_file='C:\\research\\falseMedicalClaims\\ECAI\\model input\\all_equal_weights\\by_group\\reports\\google labels.csv',
+                                   output_file='C:\\research\\falseMedicalClaims\\ECAI\\model input\\all_equal_weights\\by_group\\reports\\google labels_stats.csv')
 
 if __name__ == '__main__':
     main()
