@@ -62,7 +62,7 @@ def create_report_files_old(report_fname, confusion_fname, queries, learners, pr
                 writer.writerow(row)
 
 
-def create_query_report_file(report_fname, queries, learners, predictions, labels):
+def create_query_report_file(report_fname, queries, learners, predictions, labels, val2class, md = False):
     with open(report_fname, 'w', encoding='utf-8', newline='') as out:
         model_names = [learner.model_name() for learner in learners]
         fieldnames = ['query', 'value_label', 'class_label']
@@ -77,8 +77,12 @@ def create_query_report_file(report_fname, queries, learners, predictions, label
         writer = csv.DictWriter(out, fieldnames=fieldnames)
         writer.writeheader()
         for q in queries:
+            if 'dummy' in q:
+                continue
+            if md and not q in labels:
+                continue
             value_label = labels[q]
-            class_label = get_class(value_label, ValToClassMode.THREE_CLASSES_PESSIMISTIC)
+            class_label = get_class(value_label, val2class)
             row = {'query': q, 'value_label': value_label, 'class_label': class_label}
             for model_name in model_names:
                 predicted_class = predictions[model_name][q].class_prediction
@@ -128,7 +132,7 @@ def get_model_names_from_fieldnames(fieldnames):
 
 def gen_actual_labels_dict(labels_filename):
     labels = {}
-    with open(labels_filename,'r', encoding='utf-8', newline='') as labels_csv:
+    with open(labels_filename,'r', newline='') as labels_csv:
         reader = csv.DictReader(labels_csv)
         for row in reader:
             query = row['query']
@@ -140,6 +144,8 @@ def gen_actual_labels_dict(labels_filename):
 def compute_class_label_distribution(labels, mode):
     dist = {'actual_rejects':0,'actual_neutral':0,'actual_support':0, 'actual_initial':0}
     for q, value_label in labels.items():
+        if 'dummy' in q or not value_label:
+            continue
         class_label = get_class(int(value_label), mode)
         if class_label == 1:
             dist['actual_rejects'] += 1
@@ -151,7 +157,7 @@ def compute_class_label_distribution(labels, mode):
             dist['actual_support'] += 1
     return dist
 
-def gen_metrics(query_filename, actual_values, mode):
+def gen_metrics(query_filename, actual_values, mode, md = False):
     with open(query_filename,'r',  newline='') as queries_csv:
         reader = csv.DictReader(queries_csv)
         fieldnames = reader.fieldnames
@@ -160,10 +166,10 @@ def gen_metrics(query_filename, actual_values, mode):
         metrics = {model_name: Metrics(label_dist, mode) for model_name in model_names}
         for row in reader:
             query = row['query']
-            if not query in actual_values:
+            if not query in actual_values or not actual_values[query]:
                 continue
             value_label = int(actual_values[query])
-            if 'value_label' in row:
+            if not md and 'value_label' in row:
                 assert(value_label == int(row['value_label']))
                 #move  class infrence to metrics. In metrics - gen 2 forms of classes, 2 metrics, one for each model
             for model in model_names:
@@ -175,12 +181,16 @@ def gen_metrics(query_filename, actual_values, mode):
     return metrics
 
 
-def gen_all_metrics_comparison(folder, files, label_file):
-    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML', mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC)
-    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML', mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC)
-    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename='google_maj_ML', mode=ValToClassMode.FOUR_CLASSES)
+def gen_all_metrics_comparison(folder, files, actual_values, cmp_filename='google_maj_ML', md = False):
+    gen_metrics_comparison(folder=folder, query_filenames=files, actual_values=actual_values, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC, md=md)
+    gen_metrics_comparison(folder=folder, query_filenames=files, actual_values=actual_values, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC, md=md)
+    gen_metrics_comparison(folder=folder, query_filenames=files, actual_values=actual_values, cmp_filename=cmp_filename, mode=ValToClassMode.FOUR_CLASSES, md=md)
 
-def gen_metrics_comparison(folder, query_filenames, label_file, cmp_filename, mode):
+#    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC, md=md)
+#    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC, md=md)
+#    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename=cmp_filename, mode=ValToClassMode.FOUR_CLASSES, md=md)
+
+def gen_metrics_comparison(folder, query_filenames, actual_values, cmp_filename, mode, md = False):
     metrics = {}
     fieldnames = ['metric_name']
 
@@ -189,12 +199,12 @@ def gen_metrics_comparison(folder, query_filenames, label_file, cmp_filename, mo
     else:
         metric_names = [x for x in METRICS_NAMES if 'initial' not in x]
 
-    actual_values = gen_actual_labels_dict(label_file)
+    #actual_values = gen_actual_labels_dict(label_file)
     for f in query_filenames:
         query_filename = folder+f
         if not query_filename.endswith('.csv'):
             query_filename +='.csv'
-        metrics_entry = gen_metrics(query_filename=query_filename, actual_values=actual_values, mode=mode)
+        metrics_entry = gen_metrics(query_filename=query_filename, actual_values=actual_values, mode=mode, md = md)
         fieldnames.extend([x for x in metrics_entry.keys()])
         metrics[f] = metrics_entry
 
@@ -348,7 +358,7 @@ def gen_google_labels_error_report(label_file, google_file, output_file):
             value_label =int(actual_values[query])
             actual_class = get_class(value_label, ValToClassMode.THREE_CLASSES_PESSIMISTIC)
             predicted_value = int(row['Google_value'])
-            if predicted_value <0:
+            if predicted_value < 0:
                 continue
             predicted_class = get_class(predicted_value,ValToClassMode.THREE_CLASSES_PESSIMISTIC)
             mae = math.fabs(value_label-predicted_value)
@@ -365,8 +375,59 @@ def gen_google_labels_error_report(label_file, google_file, output_file):
             writer.writerow(stat_entry)
 
 
+def get_md_labels(file):
+    labels = {}
+    with open(file, 'r', encoding='utf-8', newline='') as queries_csv:
+        reader = csv.DictReader(queries_csv)
+        for row in reader:
+            query = row['query']
+            value = row['value_label']
+            if value.isdigit():
+                labels[query] = int(value)
+    return labels
+
+
+
+def cmp_md(md_file, query_report_full_file_name, output_file, reports_dir, feature_file):
+    md_lables = get_md_labels(md_file)
+    md_rows = []
+    with open(query_report_full_file_name, 'r', encoding='utf-8', newline='') as report_csv:
+        reader = csv.DictReader(report_csv)
+        fieldnames = reader.fieldnames
+
+        for row in reader:
+            query = row['query']
+            if query in md_lables:
+                new_row = {'query': row['query']}
+                for f in fieldnames:
+                    if f == 'query':
+                        continue
+                    new_row['annotators_' + f] = row[f]
+                new_row['value_label'] = md_lables[query]
+                new_row['class_label'] = get_class(md_lables[query], ValToClassMode.THREE_CLASSES_PESSIMISTIC)
+                md_rows.append(new_row)
+
+        with open(reports_dir+ output_file+'.csv', 'w', encoding='utf-8', newline='') as out:
+            fieldnames = reader.fieldnames
+            fieldnames.extend(['annotators_value_label', 'annotators_class_label'])
+            writer = csv.DictWriter(out, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in md_rows:
+                writer.writerow(row)
+#    files = ['google labels', 'majority', output_file]
+#    label_file = 'C:\\research\\falseMedicalClaims\\IJCAI\\annotators\\Ruthi\\Cochrane_Ruthy.csv'
+#    gen_all_metrics_comparison(folder=reports_dir,files= files,label_file=label_file, cmp_filename=feature_file+'md_cmp')
+
+
 def main():
+    cmp_md(md_file='C:\\research\\falseMedicalClaims\\IJCAI\\annotators\\Ruthi\\Cochrane_Ruthy.csv',
+           query_report_full_file_name ='C:\\research\\falseMedicalClaims\\IJCAI\model input\\ecai_paste\\by_group\\reports\\group_features_by_stance_query_report.csv',
+           output_file ='md_group_features_by_stance_query_report',
+           reports_dir='C:\\research\\falseMedicalClaims\\IJCAI\model input\\ecai_paste\\by_group\\reports\\',
+           feature_file ='group_features_by_stance')
+    return
     #cmp_sample_1_2_all()
+   # gen_all_metrics_comparison(folder=reports_dir,files= files,label_file='C:\\research\\falseMedicalClaims\\IJCAI\\annotators\Ruthi\\')
 
     gen_google_labels_error_report(label_file='C:\\research\\falseMedicalClaims\\ECAI\\model input\\all_equal_weights\\labels.csv',
                                    google_file='C:\\research\\falseMedicalClaims\\ECAI\\model input\\all_equal_weights\\by_group\\reports\\google labels.csv',

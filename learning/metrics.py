@@ -1,6 +1,8 @@
+import numpy
 from enum import Enum
 
 from numpy import mean, math
+from sklearn import metrics
 
 from learning.dataHelper import get_class
 
@@ -41,6 +43,7 @@ METRICS_NAMES = ['reject_acc',
                  'num_rel',
                  'acc',
                  'mae',
+                 'mauc',
                  'support_acc_percent',
                  'initial_acc_percent',
                  'neutral_acc_percent',
@@ -76,6 +79,41 @@ class Metrics:
         self.update_err(actual=actual_class, prediction=prediction_class,
                         false_pes=self.class_false_pessimism, false_opt=self.class_false_optimism)
 
+    @staticmethod
+    def crate_arr(len, val):
+        arr = numpy.empty(len)
+        arr.fill(val)
+        return arr
+
+    def compute_pair_auc(self, TP,FN,FP,TN):
+        TP_arr = self.crate_arr(TP, 1)
+        FN_arr = self.crate_arr(FN, 0)
+        FP_arr = self.crate_arr(FP, 1)
+        TN_arr = self.crate_arr(TN, 0)
+        p = self.crate_arr(TP+FN, 1)
+        n = self.crate_arr(FP+TN, 0)
+        y = numpy.concatenate((n,p))
+        pred= numpy.concatenate((TP_arr, FN_arr, FP_arr, TN_arr))
+        fpr, tpr, thresholds = metrics.roc_curve(y, pred)
+        return metrics.auc(fpr, tpr)
+
+    def compute_mauc(self):
+        #reject is positive, neutral is negative
+
+        auc_reject_neutral = self.compute_pair_auc(self.conf['reject_acc'],self.conf['reject_as_neutral'],
+                                                   self.conf['neutral_as_reject'],self.conf['neutral_acc'])
+
+        # reject is positive, support is negative
+        auc_reject_pos = self.compute_pair_auc(self.conf['reject_acc'], self.conf['reject_as_support'],
+                                                   self.conf['support_as_reject'], self.conf['support_acc'])
+
+        # neutral is positive, support is negative
+        auc_neutral_pos = self.compute_pair_auc(self.conf['neutral_acc'],self.conf['neutral_as_support'],
+                                                   self.conf['support_as_neutral'],self.conf['support_acc'])
+
+        return (auc_reject_neutral+auc_reject_pos+auc_neutral_pos)/3
+
+
     def process_results(self):
         self.conf['val_false_optimism_mae'] = mean(self.val_false_optimism)
         self.conf['val_false_pessimism_mae'] = mean(self.val_false_pessimism)
@@ -100,6 +138,8 @@ class Metrics:
         self.conf['neutral_acc_percent'] = 0 if self.conf['actual_neutral'] == 0 else self.conf['neutral_acc'] / self.conf['actual_neutral']
         self.conf['reject_acc_percent'] = 0 if self.conf['actual_rejects'] == 0 else self.conf['reject_acc'] / self.conf['actual_rejects']
         self.conf['initial_acc_percent'] = 0 if self.conf['actual_initial'] == 0 else self.conf['initial_acc'] / self.conf['actual_initial']
+
+        self.conf['mauc'] = self.compute_mauc()
 
     def update_confusion_counters(self, as_reject_counter, as_neutral_counter, as_support_counter,as_initial_counter,
                                   prediction_class):

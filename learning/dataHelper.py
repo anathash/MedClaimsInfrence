@@ -22,6 +22,7 @@ class ValToClassMode(Enum):
     THREE_CLASSES_PESSIMISTIC = 1
     THREE_CLASSES_OPTIMISTIC = 2
     FOUR_CLASSES = 3
+    W_H = 4
 
 
 
@@ -102,7 +103,7 @@ def get_all_pairs_train_dfs(queries, test_query):
     return train.drop(columns=['query1', 'query2'])
 
 def get_data(queries, test_query, method, shrink_scores=False):
-    train_queries = {x: y for x, y in queries.items() if x != test_query}
+    train_queries = {x: y for x, y in queries.items() if x != test_query and test_query not in x}
     test_queries = {test_query: queries[test_query]}
     test_df = test_queries[test_query].apply(pd.to_numeric)
     if method == Method.PAIRS_ALL:
@@ -200,9 +201,9 @@ def gen_test_train_set_query_split(input_dir, train_percent, shrink_scores, excl
     return Data(xtrain=xtrain, ytrain=ytrain, xtest=xtest, ytest=ytest,test_queries=test_queries, train_queries= train_queries)
 
 
-def group_prediction(y_predicted):
+def group_prediction(y_predicted, class2val):
     mean_prediction = np.mean(y_predicted)
-    class_prediction = get_class(mean_prediction, ValToClassMode.THREE_CLASSES_PESSIMISTIC)
+    class_prediction = get_class(mean_prediction, class2val)
     return Prediction(mean_prediction=mean_prediction, class_prediction = class_prediction)
 
 
@@ -269,16 +270,16 @@ def test_query_set_pairs(method, queries, model):
     return {'voting':Stats(mae=mae['voting'], acc=mean_acc['voting']),
             'avg_label': Stats(mae=mae['avg_label'], acc=mean_acc['avg_label'])}
 
-def test_group_query_set(queries, learner):
+def test_group_query_set(queries, learner, class2val):
     errors = 0
     accurate = 0
     predictions = {}
     for query, df in queries.items():
         __, x, y = split_x_y(df, Method.GROUP)
         y_predicted = learner.predict(x)
-        prediction = group_prediction(y_predicted)
+        prediction = group_prediction(y_predicted, class2val)
         predictions[query] = prediction
-        actual_value = group_prediction(y)
+        actual_value = group_prediction(y, class2val)
         if prediction.class_prediction - actual_value.class_prediction == 0:
             accurate += 1
         errors += np.math.fabs(actual_value.mean_prediction - prediction.mean_prediction)
@@ -293,9 +294,9 @@ def test_group_query_set(queries, learner):
     return {'group':Stats(mae=mae, acc=acc, predictions = predictions)}
 
 
-def test_query_set(method, queries, learner):
+def test_query_set(method, queries, learner, class2val):
     if method == Method.GROUP or method == Method.GROUP_ALL:
-        return test_group_query_set(queries, learner)
+        return test_group_query_set(queries, learner, class2val)
     return test_query_set_pairs(method, queries, learner)
 
 
@@ -324,11 +325,13 @@ def prepare_dataset(split, input_dir, train_size, shrink_scores=False, excluded 
 
 
 def get_class(score, mode:ValToClassMode): #TODO - define welll
+    int_score = int(round(score))
     val_to_class= {}
     val_to_class[ValToClassMode.THREE_CLASSES_PESSIMISTIC] = {-2:0, -1:0,1:1,2:1,3:3,4:3,5:5} #neutral_wins
     val_to_class[ValToClassMode.THREE_CLASSES_OPTIMISTIC] = {-2:0, -1: 0, 1: 1, 2: 1, 3: 3, 4: 5, 5: 5}  # support_wins
     val_to_class[ValToClassMode.FOUR_CLASSES] = {-2:0, -1: 0, 1: 1, 2: 1, 3: 3, 4: 4, 5: 5}  # 4 classess
-    return val_to_class[mode][score]
+    val_to_class[ValToClassMode.W_H] = {-2:0, -1: 0, 0:0, 1: 1, 2: 2, 3: 3}  # 3 classess
+    return val_to_class[mode][int_score]
 
 
 def gen_test_train_set_query_split_loo2(input_dir, method):

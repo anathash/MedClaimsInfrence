@@ -1,9 +1,12 @@
+from sklearn.feature_selection import SelectFromModel
+from sklearn.metrics import log_loss
 from sklearn.tree import DecisionTreeClassifier, export_text
 
-
 class SKLearner:
-    def __init__(self, model):
+    def __init__(self, model, features = None):
+        #self.selector = SelectFromModel(estimator=model)
         self.model = model
+        self.features = features
         self.mname = type(model).__name__
 
     def learn(self, data):
@@ -21,11 +24,12 @@ class SKLearner:
         X = data.xtrain
         y = data.ytrain
         self.model.fit(X,y)
-        r_sq = self.model.score(data.xtrain, data.ytrain)
-        print('coefficient of determination:', r_sq)
-#        tree_rules = export_text(self.model, feature_names=feature_cols_stance)
+        if self.features:
+            tree_rules = export_text(self.model, feature_names=self.features)
+#            print(tree_rules)
 
-     #   print(tree_rules)
+
+
 
     def predict(self,x):
         return self.model.predict(x)
