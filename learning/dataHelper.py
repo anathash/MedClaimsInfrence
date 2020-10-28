@@ -84,16 +84,16 @@ class FNames:
         self.train = train
 
 
-def shrink_classes(df):
-    return
-    stance_cols = [col for col in df if col.startswith('stance_score')]
-    for col in stance_cols:
-        for i in range(0, len(df[col])):
-            val = df.loc[i, col]
-            if val == 2:
-                df.loc[i, col] = 1
-            if val == 4:
-                df.loc[i, col] = 5
+#def shrink_classes(df):
+#    return
+#    stance_cols = [col for col in df if col.startswith('stance_score')]
+#    for col in stance_cols:
+#        for i in range(0, len(df[col])):
+#            val = df.loc[i, col]
+#            if val == 2:
+#                df.loc[i, col] = 1
+#            if val == 4:
+#                df.loc[i, col] = 5
 
 
 def get_all_pairs_train_dfs(queries, test_query):
@@ -112,9 +112,9 @@ def get_data(queries, test_query, method, shrink_scores=False):
         train_dfs = pd.concat(train_queries.values(), ignore_index=True)
     train_dfs = train_dfs.apply(pd.to_numeric)
 
-    if shrink_scores:
-        shrink_classes(test_df)
-        shrink_classes(train_dfs)
+#    if shrink_scores:
+#        shrink_classes(test_df)
+#        shrink_classes(train_dfs)
     stance_train, xtrain, ytrain = split_x_y(train_dfs, method)
     stance_test, xtest, ytest = split_x_y(test_df, method)
     return Data(xtrain=xtrain, ytrain=ytrain, stance_train = stance_train, xtest=xtest, ytest=ytest,
@@ -126,8 +126,8 @@ def gen_test_train_set_group_split(input_dir, train_size, shrink_scores):
     example_files = [x for x in filenames if x.endswith(".csv")]
     df = pd.concat([pd.read_csv(input_dir + '\\' + f) for f in example_files], ignore_index=True)
     df = df.apply(pd.to_numeric)
-    if shrink_scores:
-        shrink_classes(df)
+#    if shrink_scores:
+#        shrink_classes(df)
     train_df, test_df = train_test_split(df, train_size=train_size)
     xtrain, ytrain = split_x_y(train_df)
     xtest, ytest = split_x_y(test_df)
@@ -154,8 +154,8 @@ def csv_to_df(input_dir, fnames, method, shrink_scores=False):
     queries = {f: pd.read_csv(input_dir + '\\' + f) for f in fnames}
     dfs = pd.concat(list(queries.values()), ignore_index=True)
     df = dfs.apply(pd.to_numeric)
-    if shrink_scores:
-        shrink_classes(df)
+#    if shrink_scores:
+#        shrink_classes(df)
     __, x, y = split_x_y(dfs, method)
     return queries, x, y
 
@@ -324,14 +324,20 @@ def prepare_dataset(split, input_dir, train_size, shrink_scores=False, excluded 
         # split x and y (feature and target)
 
 
-def get_class(score, mode:ValToClassMode): #TODO - define welll
+def get_class_old(score, mode:ValToClassMode): #TODO - define welll
     int_score = int(round(score))
     val_to_class= {}
     val_to_class[ValToClassMode.THREE_CLASSES_PESSIMISTIC] = {-2:0, -1:0,1:1,2:1,3:3,4:3,5:5} #neutral_wins
     val_to_class[ValToClassMode.THREE_CLASSES_OPTIMISTIC] = {-2:0, -1: 0, 1: 1, 2: 1, 3: 3, 4: 5, 5: 5}  # support_wins
     val_to_class[ValToClassMode.FOUR_CLASSES] = {-2:0, -1: 0, 1: 1, 2: 1, 3: 3, 4: 4, 5: 5}  # 4 classess
-    val_to_class[ValToClassMode.W_H] = {-2:0, -1: 0, 0:0, 1: 1, 2: 2, 3: 3}  # 3 classess
+  #  val_to_class[ValToClassMode.W_H] = {-2:0, -1: 0, 0:0, 1: 1, 2: 2, 3: 3}  # 3 classess
+    val_to_class[ValToClassMode.W_H] = {-2:0, -1: 0, 0:0, 1: 1, 2: 3, 3: 5}  # 3 classess
     return val_to_class[mode][int_score]
+
+
+def get_class(score, mode:ValToClassMode): #TODO - define welll
+    return score
+
 
 
 def gen_test_train_set_query_split_loo2(input_dir, method):

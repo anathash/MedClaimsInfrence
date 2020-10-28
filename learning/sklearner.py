@@ -1,3 +1,6 @@
+from collections import Counter
+
+from imblearn.under_sampling import RandomUnderSampler
 from sklearn.feature_selection import SelectFromModel
 from sklearn.metrics import log_loss
 from sklearn.tree import DecisionTreeClassifier, export_text
@@ -23,6 +26,13 @@ class SKLearner:
                                'recent_weighted_h_index5_mean', 'citation_count5_mean', 'rel']
         X = data.xtrain
         y = data.ytrain
+        undersample = RandomUnderSampler(sampling_strategy={ 2:40, 3:40})
+        #undersample = RandomUnderSampler('majority')
+        X_under, y_under = undersample.fit_resample(X, y)
+        # summarize class distribution
+       # print(Counter(y_under))
+
+        #self.model.fit(X_under,y_under)
         self.model.fit(X,y)
         if self.features:
             tree_rules = export_text(self.model, feature_names=self.features)

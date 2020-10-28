@@ -139,9 +139,9 @@ class Metrics:
         self.conf['reject_acc_percent'] = 0 if self.conf['actual_rejects'] == 0 else self.conf['reject_acc'] / self.conf['actual_rejects']
         self.conf['initial_acc_percent'] = 0 if self.conf['actual_initial'] == 0 else self.conf['initial_acc'] / self.conf['actual_initial']
 
-        self.conf['mauc'] = self.compute_mauc()
+#        self.conf['mauc'] = self.compute_mauc()
 
-    def update_confusion_counters(self, as_reject_counter, as_neutral_counter, as_support_counter,as_initial_counter,
+    def update_confusion_counters_old(self, as_reject_counter, as_neutral_counter, as_support_counter,as_initial_counter,
                                   prediction_class):
         if prediction_class == 1:
             self.conf[as_reject_counter] += 1
@@ -156,7 +156,19 @@ class Metrics:
             self.conf[as_support_counter] += 1
             return
 
-    def update_confusion(self, actual_class, prediction_class):
+    def update_confusion_counters(self, as_reject_counter, as_neutral_counter, as_support_counter,as_initial_counter,
+                                  prediction_class):
+        if prediction_class == 1:
+            self.conf[as_reject_counter] += 1
+            return
+        if prediction_class == 2:
+            self.conf[as_neutral_counter] += 1
+            return
+        elif prediction_class == 3:
+            self.conf[as_support_counter] += 1
+            return
+
+    def update_confusion_old(self, actual_class, prediction_class):
         if actual_class == 1:
             self.update_confusion_counters(as_reject_counter='reject_acc',
                                                 as_neutral_counter='reject_as_neutral',
@@ -178,6 +190,28 @@ class Metrics:
 
 
         if actual_class == 5:
+            self.update_confusion_counters(as_reject_counter='support_as_reject',
+                                                as_neutral_counter='support_as_neutral',
+                                                as_support_counter='support_acc',
+                                                as_initial_counter='support_as_initial',
+                                                prediction_class=prediction_class)
+
+
+    def update_confusion(self, actual_class, prediction_class):
+        if actual_class == 1:
+            self.update_confusion_counters(as_reject_counter='reject_acc',
+                                                as_neutral_counter='reject_as_neutral',
+                                                as_support_counter='reject_as_support',
+                                                as_initial_counter='reject_as_initial',
+                                                prediction_class=prediction_class)
+        if actual_class == 2:
+            self.update_confusion_counters( as_reject_counter='neutral_as_reject',
+                                                as_neutral_counter='neutral_acc',
+                                                as_support_counter='neutral_as_support',
+                                                as_initial_counter='neutral_as_initial',
+                                                prediction_class=prediction_class)
+
+        if actual_class == 3:
             self.update_confusion_counters(as_reject_counter='support_as_reject',
                                                 as_neutral_counter='support_as_neutral',
                                                 as_support_counter='support_acc',

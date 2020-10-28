@@ -173,13 +173,13 @@ def ijcai():
     decisionTreeLearner = SKLearner(DecisionTreeClassifier(random_state=0),features)
     gnb = SKLearner(GaussianNB())
     ecl = ExpectedValLearner()
-    mult = MultipleBinaryCls(ValToClassMode.FOUR_CLASSES)
+    mult = MultipleBinaryCls(ValToClassMode.W_H)
     neigh = SKLearner(KNeighborsClassifier(n_neighbors=5))
     lr = SKLearner(LogisticRegression(C=1e5))
     kmeans = KMeansClassifier(input_dir+'\\dist.csv')
 
     #decisionforestLearner = SKLearner(RandomForestClassifier(random_state=0))
-    learners = [kmeans, neigh]
+    learners = [mult]
     #learners = [decisionforestLearner]
     predictions = test_models(learners, queries, dataHelper.Split.BY_QUERY, dataHelper.Method.GROUP_ALL)
     reports_dir =input_dir + '\\reports\\'
@@ -191,10 +191,11 @@ def ijcai():
 
 #'C:\\research\\falseMedicalClaims\\White and Hassan\\model input\\'
 def w_h():
-    input_folder = 'C:\\research\\falseMedicalClaims\\White and Hassan\\model input\\'
-    input_dir = input_folder + '\\by_group'
-
-    feature_file = "dist"
+ #   input_folder = 'C:\\research\\falseMedicalClaims\\White and Hassan\\model input\\'
+#    input_dir = 'C:\\research\\falseMedicalClaims\\White and Hassan\\model input\\mult_features\\no outlayers\\'
+#    feature_file = "group_features_by_stance_shrink_nol"
+    input_dir = 'C:\\research\\falseMedicalClaims\\White and Hassan\\model input\\mult_features_all\\'
+    feature_file = "group_features_by_stance"
     df = pd.read_csv(input_dir + '\\' + feature_file + '.csv')
     features = list(df.head())[2:]
     queries = get_queries_from_df(df)
@@ -202,21 +203,36 @@ def w_h():
     decisionTreeLearner = SKLearner(DecisionTreeClassifier(random_state=0),features)
     gnb = SKLearner(GaussianNB())
     ecl = ExpectedValLearner()
-    mult = MultipleBinaryCls(ValToClassMode.FOUR_CLASSES)
+    mult = MultipleBinaryCls(ValToClassMode.W_H)
     neigh = SKLearner(KNeighborsClassifier(n_neighbors=5))
     lr = SKLearner(LogisticRegression(C=1e5))
     kmeans = KMeansClassifier(input_dir+'\\dist.csv')
 
     decisionforestLearner = SKLearner(RandomForestClassifier(random_state=0))
-  #  learners = [kmeans, neigh]
+    #learners = [kmeans, neigh]
     learners = [decisionforestLearner]
+
     predictions = test_models(learners, queries, dataHelper.Split.BY_QUERY, dataHelper.Method.GROUP_ALL, ValToClassMode.W_H)
     reports_dir =input_dir + '\\reports\\'
     query_report_file_name = feature_file + '_query_report.csv'
     query_report_full_file_name =reports_dir+query_report_file_name
     create_query_report_file(query_report_full_file_name, queries, learners, predictions, labels, ValToClassMode.W_H)
     files = [ 'majority', query_report_file_name]
-    gen_all_metrics_comparison(folder=reports_dir,files= files,actual_values=labels, cmp_filename=feature_file+'stats_report')
+    gen_metrics_comparison(folder=reports_dir, query_filenames=files, actual_values=labels, cmp_filename=feature_file+'stats_report', mode=ValToClassMode.W_H)
+
+def w_h_report():
+    input_dir = 'C:\\research\\falseMedicalClaims\\White and Hassan\\model input\\mult_features\\no outlayers\\'
+    feature_file = "group_features_by_stance_shrink_nol"
+    df = pd.read_csv(input_dir + '\\' + feature_file + '.csv')
+ #   feature_file = "group_features_by_stance_shrink"
+    reports_dir = input_dir + '\\reports\\'
+    query_report_file_name = feature_file + '_query_report.csv'
+    queries = get_queries_from_df(df)
+    labels = {q: int(queries[q].label) for q in queries}
+    files = ['majority_nol', query_report_file_name]
+    gen_metrics_comparison(folder=reports_dir, query_filenames=files, actual_values=labels,
+                           cmp_filename=feature_file + 'stats_report', mode=ValToClassMode.W_H)
+
 
 def main():
     pandas.set_option('display.max_rows', 50)

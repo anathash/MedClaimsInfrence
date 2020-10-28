@@ -141,7 +141,7 @@ def gen_actual_labels_dict(labels_filename):
     return labels
 
 
-def compute_class_label_distribution(labels, mode):
+def compute_class_label_distribution_old(labels, mode):
     dist = {'actual_rejects':0,'actual_neutral':0,'actual_support':0, 'actual_initial':0}
     for q, value_label in labels.items():
         if 'dummy' in q or not value_label:
@@ -154,6 +154,21 @@ def compute_class_label_distribution(labels, mode):
         elif class_label == 4:
             dist['actual_initial'] += 1
         elif class_label == 5:
+            dist['actual_support'] += 1
+    return dist
+
+
+def compute_class_label_distribution(labels, mode):
+    dist = {'actual_rejects':0,'actual_neutral':0,'actual_support':0, 'actual_initial':0}
+    for q, value_label in labels.items():
+        if 'dummy' in q or not value_label:
+            continue
+        class_label = get_class(int(value_label), mode)
+        if class_label == 1:
+            dist['actual_rejects'] += 1
+        elif class_label == 2:
+            dist['actual_neutral'] += 1
+        elif class_label == 3:
             dist['actual_support'] += 1
     return dist
 
