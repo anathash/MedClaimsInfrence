@@ -4,8 +4,7 @@ from enum import Enum
 from numpy import mean, math
 from sklearn import metrics
 
-from learning.dataHelper import get_class
-
+from learning.dataHelper import get_class, REJECT, NEUTRAL, SUPPORT
 
 METRICS_NAMES = ['reject_acc',
                  'reject_as_support',
@@ -44,11 +43,17 @@ METRICS_NAMES = ['reject_acc',
                  'acc',
                  'mae',
                  'mauc',
-                 'support_acc_percent',
-                 'initial_acc_percent',
-                 'neutral_acc_percent',
-                 'reject_acc_percent',
-                 'initial_acc_percent']
+                 'support_precision',
+                 'initial_precision',
+                 'neutral_precision',
+                 'reject_precision',
+                 'initial_recall',
+                 'support_recall',
+                 'initial_recall',
+                 'neutral_recall',
+                 'reject_recall',
+                 'initial_recall'
+                 ]
 
 
 class Metrics:
@@ -134,10 +139,20 @@ class Metrics:
         self.conf['acc'] = (self.conf['support_acc'] + self.conf['neutral_acc'] +self.conf['reject_acc']) /len((self.mae))
         self.conf['mae'] = mean(self.mae)
 
-        self.conf['support_acc_percent'] = 0 if self.conf['actual_support'] == 0 else self.conf['support_acc'] / self.conf['actual_support']
-        self.conf['neutral_acc_percent'] = 0 if self.conf['actual_neutral'] == 0 else self.conf['neutral_acc'] / self.conf['actual_neutral']
-        self.conf['reject_acc_percent'] = 0 if self.conf['actual_rejects'] == 0 else self.conf['reject_acc'] / self.conf['actual_rejects']
-        self.conf['initial_acc_percent'] = 0 if self.conf['actual_initial'] == 0 else self.conf['initial_acc'] / self.conf['actual_initial']
+        self.conf['support_recall'] = 0 if self.conf['actual_support'] == 0 else self.conf['support_acc'] / self.conf['actual_support']
+        self.conf['neutral_recall'] = 0 if self.conf['actual_neutral'] == 0 else self.conf['neutral_acc'] / self.conf['actual_neutral']
+        self.conf['reject_recall'] = 0 if self.conf['actual_rejects'] == 0 else self.conf['reject_acc'] / self.conf['actual_rejects']
+        self.conf['initial_recall'] = 0 if self.conf['actual_initial'] == 0 else self.conf['initial_acc'] / self.conf['actual_initial']
+
+
+        self.conf['support_precision'] = 0 if self.conf['actual_support'] == 0 else\
+            self.conf['support_acc'] / (self.conf['support_acc'] + self.conf['neutral_as_support'] + self.conf['reject_as_support'])
+        self.conf['neutral_precision'] = 0 if self.conf['actual_neutral'] == 0 else \
+            self.conf['neutral_acc'] /( self.conf['neutral_acc'] + self.conf['reject_as_neutral'] + self.conf['support_as_neutral'])
+        self.conf['reject_precision'] = 0 if self.conf['actual_rejects'] == 0 else\
+            self.conf['reject_acc'] / (self.conf['reject_acc'] + self.conf['neutral_as_reject'] + self.conf['support_as_reject'])
+        self.conf['initial_precision'] = 0 if self.conf['actual_initial'] == 0 else self.conf['initial_acc'] / self.conf['initial_acc']
+
 
 #        self.conf['mauc'] = self.compute_mauc()
 
@@ -158,13 +173,13 @@ class Metrics:
 
     def update_confusion_counters(self, as_reject_counter, as_neutral_counter, as_support_counter,as_initial_counter,
                                   prediction_class):
-        if prediction_class == 1:
+        if prediction_class == REJECT:
             self.conf[as_reject_counter] += 1
             return
-        if prediction_class == 2:
+        if prediction_class == NEUTRAL:
             self.conf[as_neutral_counter] += 1
             return
-        elif prediction_class == 3:
+        elif prediction_class == SUPPORT:
             self.conf[as_support_counter] += 1
             return
 
@@ -198,20 +213,20 @@ class Metrics:
 
 
     def update_confusion(self, actual_class, prediction_class):
-        if actual_class == 1:
+        if actual_class == REJECT:
             self.update_confusion_counters(as_reject_counter='reject_acc',
                                                 as_neutral_counter='reject_as_neutral',
                                                 as_support_counter='reject_as_support',
                                                 as_initial_counter='reject_as_initial',
                                                 prediction_class=prediction_class)
-        if actual_class == 2:
+        if actual_class == NEUTRAL:
             self.update_confusion_counters( as_reject_counter='neutral_as_reject',
                                                 as_neutral_counter='neutral_acc',
                                                 as_support_counter='neutral_as_support',
                                                 as_initial_counter='neutral_as_initial',
                                                 prediction_class=prediction_class)
 
-        if actual_class == 3:
+        if actual_class == SUPPORT:
             self.update_confusion_counters(as_reject_counter='support_as_reject',
                                                 as_neutral_counter='support_as_neutral',
                                                 as_support_counter='support_acc',
@@ -219,8 +234,8 @@ class Metrics:
                                                 prediction_class=prediction_class)
 
     def update_metrics(self,value_label, model_value_prediction):
-        if model_value_prediction > 0:
-            self.mae.append(math.fabs(model_value_prediction-value_label))
+
+        self.mae.append(math.fabs(model_value_prediction-value_label))
         class_label = get_class(value_label, self.mode)
         model_class_prediction = get_class(model_value_prediction, self.mode)
         if model_value_prediction < 0:

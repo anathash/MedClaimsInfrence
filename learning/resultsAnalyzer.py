@@ -3,7 +3,7 @@ import math
 
 from numpy import mean
 
-from learning.dataHelper import get_class, Prediction, ValToClassMode
+from learning.dataHelper import get_class, Prediction, ValToClassMode, REJECT, NEUTRAL, SUPPORT
 from learning.metrics import Metrics, METRICS_NAMES
 
 
@@ -62,9 +62,10 @@ def create_report_files_old(report_fname, confusion_fname, queries, learners, pr
                 writer.writerow(row)
 
 
-def create_query_report_file(report_fname, queries, learners, predictions, labels, val2class, md = False):
+def create_query_report_file(report_fname, input_dir, feature_file,  queries, learners, predictions, labels, val2class, md = False):
     with open(report_fname, 'w', encoding='utf-8', newline='') as out:
         model_names = [learner.model_name() for learner in learners]
+        error_queries = {x: {} for x in model_names}
         fieldnames = ['query', 'value_label', 'class_label']
         fieldnames.extend([model_name + '_class' for model_name in model_names])
         fieldnames.extend([model_name + '_value' for model_name in model_names])
@@ -87,6 +88,8 @@ def create_query_report_file(report_fname, queries, learners, predictions, label
             for model_name in model_names:
                 predicted_class = predictions[model_name][q].class_prediction
                 predicted_val = predictions[model_name][q].mean_prediction
+                if predicted_class !=  class_label:
+                    error_queries[model_name][q]= predicted_class
                 row[model_name + "_class"] = predicted_class
                 row[model_name + "_value"] = predicted_val
                 row[model_name + "_acc"] = int(class_label == predicted_class)
@@ -96,6 +99,31 @@ def create_query_report_file(report_fname, queries, learners, predictions, label
                 row[model_name + "_class_pessim"] = 1 if predicted_class < class_label else 0
                 row[model_name + "_class_optim"] = 1 if predicted_class > class_label else 0
             writer.writerow(row)
+    create_false_predictions_feature_file(input_dir, feature_file, error_queries)
+
+
+def create_false_predictions_feature_file(input_dir, feature_file, error_queries_dict):
+    for model, error_queries in error_queries_dict.items():
+        error_query_names = error_queries.keys()
+        rows = []
+        featuer_file_path = input_dir  + feature_file  +'.csv'
+        with open(featuer_file_path, encoding='utf-8', newline='') as queries_csv:
+            reader = csv.DictReader(queries_csv)
+            for row in reader:
+                query = row ['query']
+                if query in error_query_names:
+                    row['prediction'] = error_queries[query]
+                    rows.append(row)
+        output_filename = input_dir + '/reports/' + feature_file +'_' + str(model) + '_false_predictions.csv'
+        with open(output_filename, 'w', encoding='utf-8', newline='') as output_csv:
+            fn = list(reader.fieldnames)
+            fn.insert(2, 'prediction')
+            print(fn)
+            writer = csv.DictWriter(output_csv, fn)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+
 
 def get_results_from_file(filename):
     with open(filename, encoding='utf-8', newline='') as queries_csv:
@@ -164,15 +192,15 @@ def compute_class_label_distribution(labels, mode):
         if 'dummy' in q or not value_label:
             continue
         class_label = get_class(int(value_label), mode)
-        if class_label == 1:
+        if class_label == REJECT:
             dist['actual_rejects'] += 1
-        elif class_label == 2:
+        elif class_label == NEUTRAL:
             dist['actual_neutral'] += 1
-        elif class_label == 3:
+        elif class_label == SUPPORT:
             dist['actual_support'] += 1
     return dist
 
-def gen_metrics(query_filename, actual_values, mode, md = False):
+def gen_metrics(query_filename, actual_values, mode, md = False, filter_queries= None):
     with open(query_filename,'r',  newline='') as queries_csv:
         reader = csv.DictReader(queries_csv)
         fieldnames = reader.fieldnames
@@ -180,8 +208,12 @@ def gen_metrics(query_filename, actual_values, mode, md = False):
         label_dist = compute_class_label_distribution(actual_values, mode)
         metrics = {model_name: Metrics(label_dist, mode) for model_name in model_names}
         for row in reader:
-            query = row['query']
-            if not query in actual_values or not actual_values[query]:
+            query = row['query'].strip()
+            if  query not in actual_values or not actual_values[query]:
+                #print(query + ' not in actual values')
+                #assert(False)
+                continue
+            if filter_queries and query not in filter_queries:
                 continue
             value_label = int(actual_values[query])
             if not md and 'value_label' in row:
@@ -196,16 +228,21 @@ def gen_metrics(query_filename, actual_values, mode, md = False):
     return metrics
 
 
-def gen_all_metrics_comparison(folder, files, actual_values, cmp_filename='google_maj_ML', md = False):
-    gen_metrics_comparison(folder=folder, query_filenames=files, actual_values=actual_values, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC, md=md)
-    gen_metrics_comparison(folder=folder, query_filenames=files, actual_values=actual_values, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC, md=md)
-    gen_metrics_comparison(folder=folder, query_filenames=files, actual_values=actual_values, cmp_filename=cmp_filename, mode=ValToClassMode.FOUR_CLASSES, md=md)
+def gen_all_metrics_comparison(folder, files, actual_values, cmp_filename='models_cmp', md = False, val2class = None, filter_queries = None):
+    if not val2class:
+        gen_metrics_comparison(folder=folder, query_filenames=files, actual_values=actual_values, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC, md=md ,filter_queries=filter_queries)
+        gen_metrics_comparison(folder=folder, query_filenames=files, actual_values=actual_values, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC, md=md,filter_queries=filter_queries)
+        gen_metrics_comparison(folder=folder, query_filenames=files, actual_values=actual_values, cmp_filename=cmp_filename, mode=ValToClassMode.FOUR_CLASSES, md=md,filter_queries=filter_queries)
 
+    else:
+        gen_metrics_comparison(folder=folder, query_filenames=files, actual_values=actual_values,
+                               cmp_filename=cmp_filename, mode=val2class, md=md, filter_queries=filter_queries)
 #    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC, md=md)
 #    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC, md=md)
 #    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename=cmp_filename, mode=ValToClassMode.FOUR_CLASSES, md=md)
 
-def gen_metrics_comparison(folder, query_filenames, actual_values, cmp_filename, mode, md = False):
+
+def gen_metrics_comparison(folder, query_filenames, actual_values, cmp_filename, mode, md = False, filter_queries=None):
     metrics = {}
     fieldnames = ['metric_name']
 
@@ -219,11 +256,14 @@ def gen_metrics_comparison(folder, query_filenames, actual_values, cmp_filename,
         query_filename = folder+f
         if not query_filename.endswith('.csv'):
             query_filename +='.csv'
-        metrics_entry = gen_metrics(query_filename=query_filename, actual_values=actual_values, mode=mode, md = md)
+        metrics_entry = gen_metrics(query_filename=query_filename, actual_values=actual_values, mode=mode, md = md, filter_queries=filter_queries)
         fieldnames.extend([x for x in metrics_entry.keys()])
         metrics[f] = metrics_entry
-
-    with open(folder+cmp_filename+'_'+str(mode.name)+'.csv', 'w', encoding='utf-8', newline='') as out:
+    if filter_queries:
+        filename = folder+cmp_filename+'_'+str(mode.name)+'_filtered.csv'
+    else:
+        filename = folder + cmp_filename + '_' + str(mode.name) + '.csv'
+    with open(filename, 'w', encoding='utf-8', newline='') as out:
         writer = csv.DictWriter(out, fieldnames=fieldnames)
         writer.writeheader()
         for metric in metric_names:
@@ -232,6 +272,7 @@ def gen_metrics_comparison(folder, query_filenames, actual_values, cmp_filename,
                 for model in metrics[f]:
                     row[model] = metrics[f][model].conf[metric]
             writer.writerow(row)
+
 
 def merge_metrices(folder, files, merge_file_name):
     metrics = {}

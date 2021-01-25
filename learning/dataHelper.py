@@ -9,7 +9,7 @@ from enum import Enum
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-LABEL_FILE = 'C:\\research\\falseMedicalClaims\\examples\\model input\\pubmed\\queries.csv'
+#LABEL_FILE = 'C:\\research\\falseMedicalClaims\\examples\\model input\\pubmed\\queries.csv'
 
 class Method(Enum):
     PAIRS_ALL = 1
@@ -23,6 +23,16 @@ class ValToClassMode(Enum):
     THREE_CLASSES_OPTIMISTIC = 2
     FOUR_CLASSES = 3
     W_H = 4
+    BINARY = 5
+
+VAL_TO_CLASS_DICT = {ValToClassMode.THREE_CLASSES_PESSIMISTIC:{1:1, 2:1, 3:3, 4:3, 5:5},
+                     ValToClassMode.THREE_CLASSES_OPTIMISTIC:{1:1, 2:1, 3:3, 4:5, 5:5},
+                     ValToClassMode.BINARY:{1:1, 2:1, 3:1, 4:5, 5:5}
+                     }
+REJECT = 1
+NEUTRAL = 3
+INITIAL_SUPPORT = 4
+SUPPORT = 5
 
 
 
@@ -101,6 +111,26 @@ def get_all_pairs_train_dfs(queries, test_query):
     testq_split = test_query.split('.')[0]
     train = df.loc[(df.query1 != testq_split) & (df.query2 != testq_split)]
     return train.drop(columns=['query1', 'query2'])
+
+def get_data_new(queries, test_query, method, shrink_scores=False):
+    train_queries = {x: y for x, y in queries.items() if x != test_query and test_query not in x}
+    test_queries = queries[test_query]
+    print(train_queries)
+    if method == Method.PAIRS_QUERY:
+        test_df = [x.apply(pd.to_numeric) for x in test_query]
+        train_dfs = [pd.concat(x.values(), ignore_index=True) for x in train_queries]
+        train_dfs = [x.apply(pd.to_numeric) for x in test_queries]
+    else:
+        test_df = test_query.apply(pd.to_numeric)
+        train_dfs = pd.concat(train_queries.values(), ignore_index=True)
+        train_dfs = train_dfs.apply(pd.to_numeric)
+
+    stance_train, xtrain, ytrain = split_x_y(train_dfs, method)
+    stance_test, xtest, ytest = split_x_y(test_df, method)
+    return Data(xtrain=xtrain, ytrain=ytrain, stance_train = stance_train, xtest=xtest, ytest=ytest,
+                stance_test = stance_test, test_queries=test_queries, train_queries=train_queries)
+
+
 
 def get_data(queries, test_query, method, shrink_scores=False):
     train_queries = {x: y for x, y in queries.items() if x != test_query and test_query not in x}
@@ -234,13 +264,13 @@ def pairs_prediction(stance, y_predicted):
     return voting_label, int(round(avg_label))
 
 
-def get_labels():
-    labels = {}
-    with open(LABEL_FILE, encoding='utf-8', newline='') as queries_csv:
-        reader = csv.DictReader(queries_csv)
-        for row in reader:
-            labels[row['short query']] = int(row['label'])
-    return labels
+#def get_labels():
+#    labels = {}
+#    with open(LABEL_FILE, encoding='utf-8', newline='') as queries_csv:
+#        reader = csv.DictReader(queries_csv)
+#        for row in reader:
+#            labels[row['short query']] = int(row['label'])
+#    return labels
 
 
 def test_query_set_pairs(method, queries, model):
@@ -270,13 +300,17 @@ def test_query_set_pairs(method, queries, model):
     return {'voting':Stats(mae=mae['voting'], acc=mean_acc['voting']),
             'avg_label': Stats(mae=mae['avg_label'], acc=mean_acc['avg_label'])}
 
-def test_group_query_set(queries, learner, class2val):
+def test_group_query_set(queries, learner, class2val, method, labels):
     errors = 0
     accurate = 0
     predictions = {}
     for query, df in queries.items():
-        __, x, y = split_x_y(df, Method.GROUP)
-        y_predicted = learner.predict(x)
+        if not labels:
+            __, x, y = split_x_y(df, Method.GROUP)
+            y_predicted = learner.predict(x)
+        else:
+            y_predicted = learner.predict(df)
+            y = labels[query]
         prediction = group_prediction(y_predicted, class2val)
         predictions[query] = prediction
         actual_value = group_prediction(y, class2val)
@@ -294,10 +328,8 @@ def test_group_query_set(queries, learner, class2val):
     return {'group':Stats(mae=mae, acc=acc, predictions = predictions)}
 
 
-def test_query_set(method, queries, learner, class2val):
-    if method == Method.GROUP or method == Method.GROUP_ALL:
-        return test_group_query_set(queries, learner, class2val)
-    return test_query_set_pairs(method, queries, learner)
+def test_query_set(method, queries, learner, class2val, labels):
+    return test_group_query_set(queries, learner, class2val, method, labels)
 
 
 
@@ -324,19 +356,21 @@ def prepare_dataset(split, input_dir, train_size, shrink_scores=False, excluded 
         # split x and y (feature and target)
 
 
-def get_class_old(score, mode:ValToClassMode): #TODO - define welll
-    int_score = int(round(score))
-    val_to_class= {}
-    val_to_class[ValToClassMode.THREE_CLASSES_PESSIMISTIC] = {-2:0, -1:0,1:1,2:1,3:3,4:3,5:5} #neutral_wins
-    val_to_class[ValToClassMode.THREE_CLASSES_OPTIMISTIC] = {-2:0, -1: 0, 1: 1, 2: 1, 3: 3, 4: 5, 5: 5}  # support_wins
-    val_to_class[ValToClassMode.FOUR_CLASSES] = {-2:0, -1: 0, 1: 1, 2: 1, 3: 3, 4: 4, 5: 5}  # 4 classess
-  #  val_to_class[ValToClassMode.W_H] = {-2:0, -1: 0, 0:0, 1: 1, 2: 2, 3: 3}  # 3 classess
-    val_to_class[ValToClassMode.W_H] = {-2:0, -1: 0, 0:0, 1: 1, 2: 3, 3: 5}  # 3 classess
-    return val_to_class[mode][int_score]
-
-
 def get_class(score, mode:ValToClassMode): #TODO - define welll
-    return score
+    int_score = int(round(score))
+    return  VAL_TO_CLASS_DICT[mode][int_score]
+ #   val_to_class= {}
+ #   val_to_class[ValToClassMode.THREE_CLASSES_PESSIMISTIC] = {-2:0, -1:0,1:REJECT,2:REJECT,3:NEUTRAL,4:NEUTRAL,5:SUPPORT} #neutral_wins
+ #   val_to_class[ValToClassMode.THREE_CLASSES_OPTIMISTIC] = {-2:0, -1: 0, 1: REJECT, 2: REJECT, 3: NEUTRAL, 4: SUPPORT, 5: SUPPORT}  # support_wins
+ #   val_to_class[ValToClassMode.FOUR_CLASSES] = {-2:0, -1: 0, 1: REJECT, 2: REJECT, 3: NEUTRAL, 4: INITIAL_SUPPORT, 5: SUPPORT}  # 4 classess
+  #  val_to_class[ValToClassMode.W_H] = {-2:0, -1: 0, 0:0, 1: 1, 2: 2, 3: 3}  # 3 classess
+#    val_to_class[ValToClassMode.W_H] = {-2:0, -1: 0, 0:0, 1: REJECT, 2: NEUTRAL, 3: SUPPORT}  # 3 classess
+ #   return val_to_class[mode][int_score]
+
+
+
+#def get_class(score, mode:ValToClassMode): #TODO - define welll
+#    return score
 
 
 
@@ -358,9 +392,19 @@ def get_queries_from_df(df):
     queries = {}
     for i in range(0, len(df.index)):
         qname = df.iloc[i].loc['query']
+        qname = qname.strip()
         queries[qname] = df.iloc[i].to_frame().transpose().drop(columns=['query']).apply(pd.to_numeric)
     return queries
 
+def get_queries_from_pairs_df(df):
+    queries = {}
+    for i in range(0, len(df.index)):
+        id = df.iloc[i].loc['id']
+        qname = id.split('_')[0].strip()
+        if not qname in queries:
+            queries[qname] = []
+        queries[qname].append(df.iloc[i].to_frame().transpose().drop(columns=['id']).apply(pd.to_numeric))
+    return queries
 
 def create_report_file(report_fname,queries, learners, predictions, majority_classifier,labels):
     with open(report_fname, 'w', encoding='utf-8', newline='') as out:
