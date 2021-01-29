@@ -15,10 +15,11 @@ from learning.ExpectedValLearner import ExpectedValLearner
 from learning.FieldClassifier import FieldsClassifier
 #from learning.NNlearn import NNLearner, get_parms
 from learning.MultipleCls import MultipleCls
-from learning.dataHelper import Stats, RANK_METHODS, get_queries_from_df, create_report_file, MajorityClassifier, \
+from learning.dataHelper import Stats, RANK_METHODS, get_queries_from_df, create_report_file,  \
     ValToClassMode, get_queries_from_pairs_df, Method, VAL_TO_CLASS_DICT
 from learning.diffLearner import DiffLearnerCls
 from learning.kmeansClassifier import KMeansClassifier
+from learning.majorityClassifier import MajorityClassifier
 from learning.multipleBinaries import MultipleBinaryCls
 #from learning.networks import Layer, TwoLayersNet
 #from learning.networks import TwoLayersNet, Layer
@@ -261,13 +262,13 @@ def learn_by_doctors_annotations(val2class, feature_file, directory , resample, 
     input_dir = 'C:\\research\\falseMedicalClaims\\White and Hassan\\model input\\mult_features\\'
     output_dir = 'C:\\research\\falseMedicalClaims\\White and Hassan\\model input\\'+directory+'\\'
    # feature_file = "group_features_by_stance_nol"
-    majority_file = input_dir+ majority_filename
+    #majority_file = input_dir+ majority_filename
     reports_dir = output_dir + '\\reports\\'
     query_report_file_name = feature_file + '_query_report.csv'
     query_report_full_file_name = reports_dir + query_report_file_name
-    majority_report_file_name =  'majority_' + val2class.name + '.csv'
-    majority_report_full_file_name = reports_dir + majority_report_file_name
-    gen_majority_report(majority_file, majority_report_full_file_name, val2class)
+    #majority_report_file_name =  'majority_' + val2class.name + '.csv'
+    #majority_report_full_file_name = reports_dir + majority_report_file_name
+    #gen_majority_report(majority_file, majority_report_full_file_name, val2class)
 
     #feature_file = "group_features_by_label_shrink_nol"
     #feature_file = "group_features_by_stance_label_shrink_nol"
@@ -282,15 +283,21 @@ def learn_by_doctors_annotations(val2class, feature_file, directory , resample, 
     rfc = RandomForestClassifier(random_state=0)
     decisionforestLearner = SKLearner(rfc, features = None,  resample = resample)
 #    lr = SKLearner(LinearRegression(C=1e5))
-    mult = MultipleBinaryCls(ValToClassMode.THREE_CLASSES_PESSIMISTIC)
-    learners = [MultipleCls(rfc=rfc,knn =knn, resample = resample), decisionforestLearner, neigh]
+    mult = MultipleBinaryCls(ValToClassMode.FOUR_CLASSES, resample = resample)
+    #learners = [decisionforestLearner, neigh]
+    maj = MajorityClassifier(val2class)
+    learners = [maj, MultipleCls(val2class, resample = resample), decisionforestLearner, neigh]
+   # learners = [mult, decisionforestLearner, MultipleCls(val2class, resample = resample) ]
+
+
     if quick:
         for learner in learners:
             learner.quick_learn(queries)
 
     predictions = test_models(learners, queries, dataHelper.Split.BY_QUERY, dataHelper.Method.GROUP_ALL, val2class)
     create_query_report_file(query_report_full_file_name, input_dir, feature_file, queries, learners, predictions, labels, val2class)
-    files = [majority_report_file_name, query_report_file_name]
+   # files = [majority_report_file_name, query_report_file_name]
+    files = [ query_report_file_name]
     if resample:
         cmp_filename = feature_file + '_stats_report_resample'
     else:
@@ -392,9 +399,14 @@ def gen_reports_files():
     binary_files = ['group_features_by_label_shrink_nol',
                     'group_features_by_stance_label_shrink_nol',
                     'group_features_by_stance_nol_pos_neg']
-    opt_files = ['group_features_by_label_shrink_nol',
-                 'group_features_by_stance_label_shrink_nol',
-                 'group_features_by_stance_nol']
+#    opt_files = ['group_features_by_label_shrink_nol',
+#                 'group_features_by_stance_label_shrink_nol',
+#                 'group_features_by_stance_nol']
+
+    opt_files = ['group_features_by_label_shrink_dict_nol_under',
+                 'group_features_by_stance_label_shrink_nol_under',
+                 'group_features_by_stance_nol_under']
+
     for f in binary_files:
         learn_by_doctors_annotations(feature_file=f, val2class=ValToClassMode.BINARY, resample=False,
                                      directory="binary")
@@ -403,17 +415,26 @@ def gen_reports_files():
             learn_by_doctors_annotations(feature_file=f, val2class=ValToClassMode.THREE_CLASSES_OPTIMISTIC, resample=rs,
                                          directory="optimistic")
 
+
 def gen_reports_files_dict(bin = False, opt = False, filter_queries = None):
     pandas.set_option('display.max_rows', 50)
     pandas.set_option('display.max_columns', 50)
     pandas.set_option('display.width', 1000)  # Clerical work:
     # analyze_maj('majority_nol', ValToClassMode.THREE_CLASSES_OPTIMISTIC)
-    binary_files = ['group_features_by_label_shrink_dict_nol',
-                    'group_features_by_stance_label_shrink_dict_nol',
-                    'group_features_by_stance_pos_neg_dict_nol']
-    opt_files = ['group_features_by_stance_nol', 'group_features_by_label_shrink_dict_nol',
-                 'group_features_by_stance_label_shrink_dict_nol',
-                 ]
+    #
+#    binary_files = ['group_features_by_label_shrink_dict_nol',
+#                    'group_features_by_stance_label_shrink_dict_nol',
+#                    'group_features_by_stance_pos_neg_dict_nol']
+    binary_files = ['group_features_by_label_shrink_dict_nol_under',
+                    'group_features_by_stance_label_shrink_dict_nol_under',
+                    'group_features_by_stance_pos_neg_dict_nol_under']
+#    opt_files = ['group_features_by_stance_nol', 'group_features_by_label_shrink_dict_nol',
+#                 'group_features_by_stance_label_shrink_dict_nol',
+ #                ]
+ #   opt_files = ['group_features_by_label_shrink_supported_nol','group_features_by_stance_label_shrink_maj_supported_nol','group_features_by_stance_maj_supported_nol']
+    opt_files = [#'group_features_by_label_shrink_dict_nol_under',
+                 #'group_features_by_stance_label_shrink_dict_nol_under',
+                 'group_features_by_stance_dict_nol_under']
     if bin:
         for f in binary_files:
             learn_by_doctors_annotations(feature_file=f, val2class=ValToClassMode.BINARY, resample=False,
@@ -434,10 +455,20 @@ def get_test_queries(fname):
     return queries
 
 def main():
-    #learn_by_doctors_annotations(feature_file='group_features_by_stance_nol', val2class=ValToClassMode.THREE_CLASSES_PESSIMISTIC, resample=True,
-    #                             directory="pessimistic", majority_filename='majority_nol.csv')
-    filter_queries = get_test_queries('C:\\research\\falseMedicalClaims\\White and Hassan\\labeles_non_medical_amazon.csv')
-    gen_reports_files_dict(opt= True, bin = False , filter_queries=filter_queries)
+   #learn_by_doctors_annotations(feature_file='group_features_by_stance_12_dict_nol', val2class=ValToClassMode.THREE_CLASSES_OPTIMISTIC, resample=False,
+   #                               directory="optimistic", majority_filename='majority_nol.csv')
+
+   #learn_by_doctors_annotations(feature_file='group_features_by_stance_nol', val2class=ValToClassMode.THREE_CLASSES_OPTIMISTIC, resample=True,
+   #                               directory="optimistic", majority_filename='majority_nol.csv')
+
+   #learn_by_doctors_annotations(feature_file='group_features_by_stance_nol', val2class=ValToClassMode.THREE_CLASSES_OPTIMISTIC, resample=False,
+   #                               directory="optimistic", majority_filename='majority_nol.csv')
+
+   #filter_queries = get_test_queries('C:\\research\\falseMedicalClaims\\White and Hassan\\labeles_non_medical_amazon.csv')
+   gen_reports_files_dict(opt= True, bin = True , filter_queries=None)
+
+
+
     #w_h_report()
 
 

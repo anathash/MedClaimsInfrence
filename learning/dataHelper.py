@@ -63,7 +63,7 @@ class Prediction:
         self.class_prediction = class_prediction
 
 
-class MajorityClassifier:
+class DHMajorityClassifier:
     def __init__(self, majority_file):
         self.predictions = {}
         with open(majority_file, encoding='utf-8', newline='') as queries_csv:

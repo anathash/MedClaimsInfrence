@@ -52,12 +52,17 @@ METRICS_NAMES = ['reject_acc',
                  'initial_recall',
                  'neutral_recall',
                  'reject_recall',
-                 'initial_recall'
+                 'initial_recall',
+                 'neutral_false_optimism',
+                 'reject_false_optimism',
+                 'support_fo_score',
+                 'neutral_fo_score',
+                 'reject_fo_score',
                  ]
 
 
 class Metrics:
-    def __init__(self, initial_metrics, mode):
+    def __init__(self, initial_metrics, mode, beta = 2):
         self.val_false_optimism = []
         self.val_false_pessimism = []
         self.class_false_optimism = []
@@ -65,6 +70,7 @@ class Metrics:
         self.mode = mode
         self.mae = []
         self.conf ={x:0 for x in METRICS_NAMES}
+        self.beta = beta
         for k,v in initial_metrics.items():
             assert (k in self.conf)
             self.conf[k] = v
@@ -119,6 +125,10 @@ class Metrics:
         return (auc_reject_neutral+auc_reject_pos+auc_neutral_pos)/3
 
 
+    def compute_fo(self, precision, recall):
+        return  ((1+self.beta*self.beta)*precision*recall)/((self.beta*self.beta*precision)+recall)
+
+
     def process_results(self):
         self.conf['val_false_optimism_mae'] = mean(self.val_false_optimism)
         self.conf['val_false_pessimism_mae'] = mean(self.val_false_pessimism)
@@ -153,6 +163,11 @@ class Metrics:
             self.conf['reject_acc'] / (self.conf['reject_acc'] + self.conf['neutral_as_reject'] + self.conf['support_as_reject'])
         self.conf['initial_precision'] = 0 if self.conf['actual_initial'] == 0 else self.conf['initial_acc'] / self.conf['initial_acc']
 
+        self.conf['neutral_false_optimism']  = 0 if self.conf['actual_neutral'] == 0 else  self.conf['neutral_as_support']/self.conf['actual_neutral']
+        self.conf['reject_false_optimism'] = 1 - self.conf['reject_recall']
+        self.conf['support_fo_score'] = self.compute_fo(precision = self.conf['support_precision'], recall=1)
+        self.conf['neutral_fo_score'] = self.compute_fo(precision = self.conf['neutral_precision'], recall=1 - self.conf['neutral_false_optimism'])
+        self.conf['reject_fo_score'] = 0 if self.conf['reject_recall'] ==0 else self.compute_fo(precision = self.conf['reject_precision'], recall= self.conf['reject_recall'])
 
 #        self.conf['mauc'] = self.compute_mauc()
 

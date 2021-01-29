@@ -200,6 +200,7 @@ def compute_class_label_distribution(labels, mode):
             dist['actual_support'] += 1
     return dist
 
+
 def gen_metrics(query_filename, actual_values, mode, md = False, filter_queries= None):
     with open(query_filename,'r',  newline='') as queries_csv:
         reader = csv.DictReader(queries_csv)
@@ -240,6 +241,7 @@ def gen_all_metrics_comparison(folder, files, actual_values, cmp_filename='model
 #    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_OPTIMISTIC, md=md)
 #    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename=cmp_filename, mode=ValToClassMode.THREE_CLASSES_PESSIMISTIC, md=md)
 #    gen_metrics_comparison(folder=folder, query_filenames=files, label_file=label_file, cmp_filename=cmp_filename, mode=ValToClassMode.FOUR_CLASSES, md=md)
+
 
 
 def gen_metrics_comparison(folder, query_filenames, actual_values, cmp_filename, mode, md = False, filter_queries=None):

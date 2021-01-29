@@ -14,30 +14,33 @@ from sklearn.tree import DecisionTreeClassifier, export_text
 from learning.majorityClassifier import MajorityClassifier
 
 
-class MultipleCls:
+class EnsembleLearner:
     def __init__(self, val2class, features = None, resample = False):
         self.models = {'knn': KNeighborsClassifier(n_neighbors=5),
                        'rfc': RandomForestClassifier(random_state=0),
+                       'knn_smote': KNeighborsClassifier(n_neighbors=5),
+                       'rfc_smote': RandomForestClassifier(random_state=0),
+                       'knn_1_3': KNeighborsClassifier(n_neighbors=5),
+                       'rfc_1_3': RandomForestClassifier(random_state=0),
+                       'knn_3_5': KNeighborsClassifier(n_neighbors=5), #3/5?
+                       'rfc_3_5': RandomForestClassifier(random_state=0),
                        'maj': MajorityClassifier(val2class)}
         self.features = features
         self.resample = resample
-        self.mname = 'MultipleCls'
+        self.mname = 'EnsembleLearner'
 
     def learn(self, data):
         X = data.xtrain
         y = data.ytrain
+        over = SMOTE()
+        X_fit, y_fit = over.fit_resample(X, y)
         self.models['maj'].learn(data)
-        if self.resample:
-            over = SMOTE()
-            X_fit, y_fit = over.fit_resample(X, y)
-            print(Counter(y_fit))
-            self.models['knn'].fit(X_fit,y_fit)
-            self.models['rfc'].fit(X_fit,y_fit)
-
-        else:
-            print(Counter(y))
-            self.models['knn'].fit(X,y)
-            self.models['rfc'].fit(X,y)
+        self.models['knn'].fit(X, y)
+        self.models['rfc'].fit(X, y)
+        self.models['knn_smote'].fit(X_fit, y_fit)
+        self.models['rfc_smote'].fit(X_fit, y_fit)
+        one_
+        cls_y = [score_to_class_dict[cls][x] for x in y]
 
 
     def predict(self,x):
